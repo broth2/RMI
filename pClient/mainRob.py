@@ -10,6 +10,7 @@ CELLCOLS=14
 class MyRob(CRobLinkAngs):
     def __init__(self, rob_name, rob_id, angles, host):
         CRobLinkAngs.__init__(self, rob_name, rob_id, angles, host)
+        self.nuno = 0
 
     # In this map the center of cell (i,j), (i in 0..6, j in 0..13) is mapped to labMap[i*2][j*2].
     # to know if there is a wall on top of cell(i,j) (i in 0..5), check if the value of labMap[i*2+1][j*2] is space or not
@@ -81,8 +82,60 @@ class MyRob(CRobLinkAngs):
             print('Rotate slowly left')
             self.driveMotors(0.0,0.1)
         else:
-            print('Go')
-            self.driveMotors(0.1,0.1)
+            lineSense = self.measures.lineSensor
+            print(lineSense)
+            if '1' in lineSense[2:5]:
+                # any 1 in middle sensor
+                if all(entry == '1' for entry in lineSense[2:5]):
+                    # xx 111 xx
+                    self.driveMotors(0.15, 0.15)
+                    print("forward")
+                    return
+                elif lineSense[2]=='1' and lineSense[3]=='1':
+                    # xx 110 xx
+                    self.driveMotors(0, 0.1)
+                    print("slight left")
+                elif lineSense[4]=='1' and lineSense[3]=='1':
+                    # xx 011 xx
+                    self.driveMotors(0.1, 0)
+                    print("slight right")
+                elif lineSense[2]=='1' and lineSense[4]=='0':
+                    # xx 100 xx
+                    self.driveMotors(-0.15, 0.15)
+                    print("adjust left")
+                elif lineSense[2]=='0' and lineSense[4]=='1':
+                    # xx 001 xx
+                    self.driveMotors(0.15, -0.15)
+                    print("adjust right")
+                    pass
+                else:
+                    # 101; 010
+                    print("exception 1 -------------------------------------------------------------------")
+
+
+                if '1' in lineSense[:2] and '1' not in lineSense[-2:]:
+                    # any 1 in left sensor
+                    self.driveMotors(0, 0.10)
+                    print("adjust more left")
+                elif '1' in lineSense[-2:] and '1' not in lineSense[:2]:
+                    # any 1 in right sensor
+                    self.driveMotors(0.10, 0)
+                self.driveMotors(0.1, 0.1)
+
+
+            elif '1' in lineSense[:2]:
+                self.driveMotors(-0.1, 0.15)
+                #self.driveMotors(0.1, 0.1)
+            elif '1' in lineSense[-2:]:
+                self.driveMotors(0.15, -0.1)
+                #self.driveMotors(0.1, 0.1)
+            elif '1' not in lineSense:
+                self.driveMotors(0,0)
+                return
+            else:
+                print("exception 2 ------------------------------------------------------------------------")
+            #print("gammzy")
+            #self.driveMotors(0.1,0.1)
 
 class Map():
     def __init__(self, filename):
