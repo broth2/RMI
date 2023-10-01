@@ -1,4 +1,3 @@
-
 import sys
 from croblink import *
 from math import *
@@ -8,9 +7,14 @@ CELLROWS=7
 CELLCOLS=14
 
 class MyRob(CRobLinkAngs):
+    last_sensor = None
+    last_10_sensor = [0,0,0,0,0,0,0,0,0,0]
+    m = 0
+    curr = None
+    prev = None
+    
     def __init__(self, rob_name, rob_id, angles, host):
         CRobLinkAngs.__init__(self, rob_name, rob_id, angles, host)
-        self.nuno = 0
 
     # In this map the center of cell (i,j), (i in 0..6, j in 0..13) is mapped to labMap[i*2][j*2].
     # to know if there is a wall on top of cell(i,j) (i in 0..5), check if the value of labMap[i*2+1][j*2] is space or not
@@ -23,18 +27,21 @@ class MyRob(CRobLinkAngs):
 
     def run(self):
         if self.status != 0:
-            print("Connection refused or error")
+            print("ConnectionÂ´ refused or error")
             quit()
 
         state = 'stop'
         stopped_state = 'run'
 
         while True:
+            #READ SENSOR 
             self.readSensors()
+            # print measures array
 
             if self.measures.endLed:
                 print(self.robName + " exiting")
                 quit()
+
 
             if state == 'stop' and self.measures.start:
                 state = stopped_state
@@ -62,13 +69,79 @@ class MyRob(CRobLinkAngs):
                 if self.measures.returningLed==True:
                     self.setReturningLed(False)
                 self.wander()
-            
+                
+    def store_sensor_values(self, arr):
+        self.last_10_sensor[self.m] = arr
+        self.m += 1
+        if self.m == 10:
+            self.m = 0
+
+    def get_history_eval(self, orientation):
+        print("Last 10 sensor values", self.last_10_sensor)
+        left = 0
+        right = 0
+        for i in self.last_10_sensor:
+            arr = i
+            leftmost = arr[0:2]
+            rightmost = arr[5:7]
+            if leftmost == ['0','1'] or leftmost == ['1','1']:
+                 left += 1
+            if rightmost == ['1','0'] or rightmost == ['1','1']:
+                right += 1
+
+        if left < right and orientation=="right":
+            self.driveMotors(0.1,-0.05)
+            print("90 degree curve to the right")
+        elif left > right and orientation=="left":
+            self.driveMotors(0,0.1)
+            print("90 degree curve to the left")
+        else:
+            if orientation=="right":
+                self.driveMotors(0.1,-0.05)
+                print("90 degree curve to the right without integral")
+            elif orientation=="left":
+                self.driveMotors(0,0.1)
+                print("90 degree curve to the left without integral")
+        # else:
+        #     if left<right:
+        #         self.driveMotors(0.1,0)
+        #         print("90 degree curve to the right without proportional")
+        #     elif right<left:
+        #         self.driveMotors(0,0.1)
+        #         print("90 degree curve to the left without proportional")
+        #     else:
+        #         self.driveMotors(0.1,0.1)
+        #         print("going forward without proportional")
+
+    
+    def detect90(self):
+        if not self.curr:
+            self.prev = []
+            self.curr = self.measures.lineSensor
+            return
+        self.prev = self.curr
+        self.curr = self.measures.lineSensor
+
+        if self.prev==['0','0', '1','1','1', '1','1'] and self.curr== ['0','0','0','1','1','1','1']:
+            print("\n\n\n\n\n\n\n\n\n\n\n\n\n90 degree curve to the right\n\n\n\n\n\n\n\n\n\n\n\n\n")
+            self.driveMotors(0,0)
+            self.get_history_eval("right")
+
+        if self.prev==['1','1', '1','1','1', '0','0'] and self.curr== ['1','1','1','1','0','0','0']:
+            print("\n\n\n\n\n\n\n\n\n\n\n\n\n90 degree curve to the left\n\n\n\n\n\n\n\n\n\n\n\n\n")
+            self.driveMotors(0,0)
+            self.get_history_eval("left")
+
 
     def wander(self):
         center_id = 0
         left_id = 1
         right_id = 2
         back_id = 3
+        #print Line Sensor values
+        print("LineSensor", self.measures.lineSensor)
+
+
         if    self.measures.irSensor[center_id] > 5.0\
            or self.measures.irSensor[left_id]   > 5.0\
            or self.measures.irSensor[right_id]  > 5.0\
@@ -82,60 +155,70 @@ class MyRob(CRobLinkAngs):
             print('Rotate slowly left')
             self.driveMotors(0.0,0.1)
         else:
-            lineSense = self.measures.lineSensor
-            print(lineSense)
-            if '1' in lineSense[2:5]:
-                # any 1 in middle sensor
-                if all(entry == '1' for entry in lineSense[2:5]):
-                    # xx 111 xx
-                    self.driveMotors(0.15, 0.15)
-                    print("forward")
-                    return
-                elif lineSense[2]=='1' and lineSense[3]=='1':
-                    # xx 110 xx
-                    self.driveMotors(0, 0.1)
-                    print("slight left")
-                elif lineSense[4]=='1' and lineSense[3]=='1':
-                    # xx 011 xx
-                    self.driveMotors(0.1, 0)
-                    print("slight right")
-                elif lineSense[2]=='1' and lineSense[4]=='0':
-                    # xx 100 xx
-                    self.driveMotors(-0.15, 0.15)
-                    print("adjust left")
-                elif lineSense[2]=='0' and lineSense[4]=='1':
-                    # xx 001 xx
-                    self.driveMotors(0.15, -0.15)
-                    print("adjust right")
-                    pass
-                else:
-                    # 101; 010
-                    print("exception 1 -------------------------------------------------------------------")
+            # Calculate error
+            self.store_sensor_values(self.measures.lineSensor)
+            error = calculate_error(self.measures.lineSensor)
+            self.detect90()
+            print("Error", error)
 
-
-                if '1' in lineSense[:2] and '1' not in lineSense[-2:]:
-                    # any 1 in left sensor
-                    self.driveMotors(0, 0.10)
-                    print("adjust more left")
-                elif '1' in lineSense[-2:] and '1' not in lineSense[:2]:
-                    # any 1 in right sensor
-                    self.driveMotors(0.10, 0)
+            # If the error is zero, follow the line
+            if error == 0:
                 self.driveMotors(0.1, 0.1)
-
-
-            elif '1' in lineSense[:2]:
-                self.driveMotors(-0.1, 0.15)
-                #self.driveMotors(0.1, 0.1)
-            elif '1' in lineSense[-2:]:
-                self.driveMotors(0.15, -0.1)
-                #self.driveMotors(0.1, 0.1)
-            elif '1' not in lineSense:
-                self.driveMotors(0,0)
-                return
+                
             else:
-                print("exception 2 ------------------------------------------------------------------------")
-            #print("gammzy")
-            #self.driveMotors(0.1,0.1)
+                if error > 1 or error < -1:
+                    print("BIG ERROR")
+                    self.driveMotors(0.0, 0.0)
+                    self.driveMotors(0.0, 0.0)
+                # Adjust robot's direction based on error
+                correction = 0.12 * error  # Adjust this factor as needed
+                left_motor_speed = 0.12 + correction
+                right_motor_speed = 0.12 - correction
+
+                self.driveMotors(left_motor_speed, right_motor_speed)
+        
+
+
+
+
+
+
+def calculate_error(arr):
+    #in this function the arr will be a list of 7 elements, being the 2 first elements represent the leftmost sensor and the 2 last elements represent the rightmost sensor
+    #and the 3 middle elements represent the front sensors
+    #if the arr is like [0,0,1,1,1,0,0] the error will be 0, if the group of ones deviate from that position the error will be different from 0
+    # if the group of ones are more towards the left sensor, the error will be negative, if the ones are more towards the right sensor, the error will be positive
+    # if the group of ones are more towards the center, the error will be CLOSER to 0
+
+
+    #first we need to find the first and last index of the group of ones
+    first_index = 0
+    last_index = 0
+    for i in range(len(arr)):
+        print("i", arr[i])
+        if arr[i] == '1':
+            first_index = i
+            print("First index", first_index)
+            break
+    for i in range(len(arr)-1, -1, -1):
+        if arr[i] == '1':
+            last_index = i
+            print("Last index", last_index)
+            break
+
+    #now we need to find the center of the group of ones
+    center = (first_index + last_index) / 2
+    print("Center", center)
+
+
+    
+    #now we need to find the error
+    error = center - 3
+    
+    return error
+
+
+
 
 class Map():
     def __init__(self, filename):
