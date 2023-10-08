@@ -12,6 +12,8 @@ class MyRob(CRobLinkAngs):
     m = 0
     curr = None
     prev = None
+    curr_err = None
+    prev_err = None
     
     def __init__(self, rob_name, rob_id, angles, host):
         CRobLinkAngs.__init__(self, rob_name, rob_id, angles, host)
@@ -77,7 +79,7 @@ class MyRob(CRobLinkAngs):
             self.m = 0
 
     def get_history_eval(self, orientation):
-        print("Last 10 sensor values", self.last_10_sensor)
+        #print("Last 10 sensor values", self.last_10_sensor)
         left = 0
         right = 0
         for i in self.last_10_sensor:
@@ -90,28 +92,28 @@ class MyRob(CRobLinkAngs):
                 right += 1
 
         if left < right and orientation=="right":
-            self.driveMotors(0.1,-0.05)
-            print("90 degree curve to the right")
+            self.driveMotors(0.1,0)
+            #print("execut: 90 degree curve to the right")
         elif left > right and orientation=="left":
             self.driveMotors(0,0.1)
-            print("90 degree curve to the left")
-        else:
+            #print("execut: 90 degree curve to the left")
+        elif left==right:
             if orientation=="right":
-                self.driveMotors(0.1,-0.05)
+                self.driveMotors(0.1,0)
                 print("90 degree curve to the right without integral")
             elif orientation=="left":
                 self.driveMotors(0,0.1)
                 print("90 degree curve to the left without integral")
-        # else:
-        #     if left<right:
-        #         self.driveMotors(0.1,0)
-        #         print("90 degree curve to the right without proportional")
-        #     elif right<left:
-        #         self.driveMotors(0,0.1)
-        #         print("90 degree curve to the left without proportional")
-        #     else:
-        #         self.driveMotors(0.1,0.1)
-        #         print("going forward without proportional")
+        else:
+            if left<right:
+                self.driveMotors(0.1,0)
+                print("90 degree curve to the right without proportional")
+            elif right<left:
+                self.driveMotors(0,0.1)
+                print("90 degree curve to the left without proportional")
+            else:
+                self.driveMotors(0.1,0.1)
+                print("going forward without proportional")
 
     
     def detect90(self):
@@ -123,12 +125,12 @@ class MyRob(CRobLinkAngs):
         self.curr = self.measures.lineSensor
 
         if self.prev==['0','0', '1','1','1', '1','1'] and self.curr== ['0','0','0','1','1','1','1']:
-            print("\n\n\n\n\n\n\n\n\n\n\n\n\n90 degree curve to the right\n\n\n\n\n\n\n\n\n\n\n\n\n")
+            print("\ndetect: 90 degree curve to the right")
             self.driveMotors(0,0)
             self.get_history_eval("right")
 
         if self.prev==['1','1', '1','1','1', '0','0'] and self.curr== ['1','1','1','1','0','0','0']:
-            print("\n\n\n\n\n\n\n\n\n\n\n\n\n90 degree curve to the left\n\n\n\n\n\n\n\n\n\n\n\n\n")
+            print("\nndetect: 90 degree curve to the left")
             self.driveMotors(0,0)
             self.get_history_eval("left")
 
@@ -157,9 +159,9 @@ class MyRob(CRobLinkAngs):
         else:
             # Calculate error
             self.store_sensor_values(self.measures.lineSensor)
-            error = calculate_error(self.measures.lineSensor)
+            error = self.calculate_error(self.measures.lineSensor)
             self.detect90()
-            print("Error", error)
+            print("Error", error, "\n")
 
             # If the error is zero, follow the line
             if error == 0:
@@ -167,55 +169,62 @@ class MyRob(CRobLinkAngs):
                 
             else:
                 if error > 1 or error < -1:
-                    print("BIG ERROR")
+                    #print("BIG ERROR")
                     self.driveMotors(0.0, 0.0)
                     self.driveMotors(0.0, 0.0)
                 # Adjust robot's direction based on error
-                correction = 0.12 * error  # Adjust this factor as needed
-                left_motor_speed = 0.12 + correction
-                right_motor_speed = 0.12 - correction
+                correction = (0.12 * error)/3  # Adjust this factor as needed
+                left_motor_speed = 0.03 + correction
+                right_motor_speed = 0.03 - correction
 
                 self.driveMotors(left_motor_speed, right_motor_speed)
         
 
+    def calculate_error(self, arr):
+        #in this function the arr will be a list of 7 elements, being the 2 first elements represent the leftmost sensor and the 2 last elements represent the rightmost sensor
+        #and the 3 middle elements represent the front sensors
+        #if the arr is like [0,0,1,1,1,0,0] the error will be 0, if the group of ones deviate from that position the error will be different from 0
+        # if the group of ones are more towards the left sensor, the error will be negative, if the ones are more towards the right sensor, the error will be positive
+        # if the group of ones are more towards the center, the error will be CLOSER to 0
 
 
+        #first we need to find the first and last index of the group of ones
+        first_index = -1
+        last_index = -1
+        for i in range(len(arr)):
+            #print("i", arr[i])
+            if arr[i] == '1':
+                first_index = i
+                #print("First index", first_index)
+                break
+        for i in range(len(arr)-1, -1, -1):
+            if arr[i] == '1':
+                last_index = i
+                #print("Last index", last_index)
+                break
 
+        #now we need to find the center of the group of ones
+        center = (first_index + last_index) / 2
+        print("Center", center)
 
+        if first_index==-1 and last_index==-1:
+            #return ultimo movimento
+            print("ALL ZERO CASE")
+            print("prev error:", self.prev_err, "curr error:", self.curr_err)
+            #self.driveMotors(0,0)
+            #return -1
+            #center = 1.5
+            return self.curr_err
+        
+        #now we need to find the error
+        error = center - 3
 
-def calculate_error(arr):
-    #in this function the arr will be a list of 7 elements, being the 2 first elements represent the leftmost sensor and the 2 last elements represent the rightmost sensor
-    #and the 3 middle elements represent the front sensors
-    #if the arr is like [0,0,1,1,1,0,0] the error will be 0, if the group of ones deviate from that position the error will be different from 0
-    # if the group of ones are more towards the left sensor, the error will be negative, if the ones are more towards the right sensor, the error will be positive
-    # if the group of ones are more towards the center, the error will be CLOSER to 0
-
-
-    #first we need to find the first and last index of the group of ones
-    first_index = 0
-    last_index = 0
-    for i in range(len(arr)):
-        print("i", arr[i])
-        if arr[i] == '1':
-            first_index = i
-            print("First index", first_index)
-            break
-    for i in range(len(arr)-1, -1, -1):
-        if arr[i] == '1':
-            last_index = i
-            print("Last index", last_index)
-            break
-
-    #now we need to find the center of the group of ones
-    center = (first_index + last_index) / 2
-    print("Center", center)
-
-
-    
-    #now we need to find the error
-    error = center - 3
-    
-    return error
+        if self.curr_err is None:
+            self.curr_err = error
+        self.prev_err = self.curr_err
+        self.curr_err = error
+        
+        return error
 
 
 
