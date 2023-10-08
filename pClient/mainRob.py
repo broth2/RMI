@@ -14,6 +14,7 @@ class MyRob(CRobLinkAngs):
     prev = None
     curr_err = None
     prev_err = None
+    #checkpoint = -1
     
     def __init__(self, rob_name, rob_id, angles, host):
         CRobLinkAngs.__init__(self, rob_name, rob_id, angles, host)
@@ -125,13 +126,13 @@ class MyRob(CRobLinkAngs):
         self.curr = self.measures.lineSensor
 
         if self.prev==['0','0', '1','1','1', '1','1'] and self.curr== ['0','0','0','1','1','1','1']:
-            print("\ndetect: 90 degree curve to the right")
-            self.driveMotors(0,0)
+            #print("detect: 90 degree curve to the right")
+            #self.driveMotors(0,0)
             self.get_history_eval("right")
 
         if self.prev==['1','1', '1','1','1', '0','0'] and self.curr== ['1','1','1','1','0','0','0']:
-            print("\nndetect: 90 degree curve to the left")
-            self.driveMotors(0,0)
+            #print("detect: 90 degree curve to the left")
+            #self.driveMotors(0,0)
             self.get_history_eval("left")
 
 
@@ -161,11 +162,21 @@ class MyRob(CRobLinkAngs):
             self.store_sensor_values(self.measures.lineSensor)
             error = self.calculate_error(self.measures.lineSensor)
             self.detect90()
-            print("Error", error, "\n")
+            #print("Error", error, "\n")
 
+            # poor checkpoint implementation
+            # if self.measures.ground != -1:
+            #     if self.measures.ground == (self.checkpoint+1)%3 or self.measures.ground == self.checkpoint:
+            #         self.checkpoint = self.measures.ground
+            #     elif self.measures.ground == (self.checkpoint-1)%3:
+            #         #go back
+            #         print("I should turn back")
+            #         pass
+            #     print("ground",self.checkpoint)
+            
             # If the error is zero, follow the line
             if error == 0:
-                self.driveMotors(0.1, 0.1)
+                self.driveMotors(0.15, 0.15)
                 
             else:
                 if error > 1 or error < -1:
@@ -173,9 +184,9 @@ class MyRob(CRobLinkAngs):
                     self.driveMotors(0.0, 0.0)
                     self.driveMotors(0.0, 0.0)
                 # Adjust robot's direction based on error
-                correction = (0.12 * error)/3  # Adjust this factor as needed
-                left_motor_speed = 0.03 + correction
-                right_motor_speed = 0.03 - correction
+                correction = (0.13 * error)  # Adjust this factor as needed
+                left_motor_speed = 0.02 + correction
+                right_motor_speed = 0.02 - correction
 
                 self.driveMotors(left_motor_speed, right_motor_speed)
         
@@ -205,7 +216,7 @@ class MyRob(CRobLinkAngs):
 
         #now we need to find the center of the group of ones
         center = (first_index + last_index) / 2
-        print("Center", center)
+        #print("Center", center)
 
         if first_index==-1 and last_index==-1:
             #return ultimo movimento
@@ -214,6 +225,8 @@ class MyRob(CRobLinkAngs):
             #self.driveMotors(0,0)
             #return -1
             #center = 1.5
+            if self.curr_err is None:
+                return -3               #in case initial orientation is not horizontal
             return self.curr_err
         
         #now we need to find the error
