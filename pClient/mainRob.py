@@ -2,6 +2,7 @@ import sys
 from croblink import *
 from math import *
 import xml.etree.ElementTree as ET
+import random
 
 CELLROWS=7
 CELLCOLS=14
@@ -14,6 +15,7 @@ class MyRob(CRobLinkAngs):
     prev = None
     curr_err = None
     prev_err = None
+    lost_count = 0
     #checkpoint = -1
     
     def __init__(self, rob_name, rob_id, angles, host):
@@ -161,6 +163,27 @@ class MyRob(CRobLinkAngs):
             # Calculate error
             self.store_sensor_values(self.measures.lineSensor)
             error = self.calculate_error(self.measures.lineSensor)
+            if error==-10:
+                self.driveMotors(-0.10, -0.10)
+                if self.lost_count <= 15:
+                    self.driveMotors(-0.06,0.06)
+                    self.lost_count = self.lost_count + 1
+                    print("turning left")
+                elif 15 < self.lost_count <= 30 :
+                    self.driveMotors(0.1,-0.1)              # se eu mudar alguma coisa que seja de 0.1 para 0.12 no maximo
+                    self.lost_count = self.lost_count + 1
+                    print("turning right")
+                else:
+                    self.lost_count = 0
+                    print("resetting")
+                # rndm = random.randint(0, 1)
+                # for i in range(6):
+                #     if rndm:
+                #         self.driveMotors(-0.15,0.15)   # slight left
+                #     else:
+                #         self.driveMotors(0.15,-0.15)
+                #self.driveMotors(-0.15, -0.15)
+                return
             self.detect90()
             #print("Error", error, "\n")
 
@@ -221,14 +244,14 @@ class MyRob(CRobLinkAngs):
         if first_index==-1 and last_index==-1:
             #return ultimo movimento
             print("ALL ZERO CASE")
-            print("prev error:", self.prev_err, "curr error:", self.curr_err)
+            #print("prev error:", self.prev_err, "curr error:", self.curr_err)
             #self.driveMotors(0,0)
             #return -1
             #center = 1.5
             if self.curr_err is None:
                 return -3               #in case initial orientation is not horizontal
-            return self.curr_err
-        
+            return -10
+        self.lost_count = 0
         #now we need to find the error
         error = center - 3
 
