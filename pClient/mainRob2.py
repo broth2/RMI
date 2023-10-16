@@ -90,8 +90,7 @@ class MyRob(CRobLinkAngs):
                     self.setVisitingLed(False)
                 if self.measures.returningLed==True:
                     self.setReturningLed(False)
-                step = input("Wait for input")
-                
+
                 self.wander()
                 
 
