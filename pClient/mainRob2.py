@@ -9,7 +9,7 @@ CELLCOLS=14
 
 class Cell():
     visited = False
-    paths = [0,0,0,0,0,0,0]
+    paths = [-1,-1,-1,-1,-1,-1,-1,-1]
     coords = None
 
 
@@ -22,6 +22,11 @@ class MyRob(CRobLinkAngs):
     orientation = None
     paths = [-1,-1,-1,-1,-1,-1,-1,-1]
     possible_orientations = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+    has_new_coords = False
+    new_x = 0
+    new_y = 0
+    new_orientation = False
+
     def __init__(self, rob_name, rob_id, angles, host):
         # init system vars
         self.state = [[None] * 25 for _ in range(11)]
@@ -132,103 +137,155 @@ class MyRob(CRobLinkAngs):
             # L =  5 - y
             # C = 12 + x 
             x,y =self.myGps(self.measures.x, self.measures.y)
+            print("\nSELF.NEW COORDS\n", self.has_new_coords)
+            if self.has_new_coords:
+                if x == self.new_x and y == self.new_y:
+                    self.has_new_coords = False
+                else:
+                    self.driveMotors(0.05,0.05)
 
             self.get_orientation()
             coord = (x,y)
 
             #visited_orientations_coord = self.get_visited_orientations(coord)
             #print("visited orientations:", visited_orientations_coord)
-            
-            #---------ADDING ORIENTATION VISITED-----------
-            #get list of keys coord from visited_orientation
-            if coord not in self.visited_orientation.keys():
-                self.paths = [0,0,0,0,0,0,0,0]
-                self.visited_orientation[coord] = {'visited': set()}
-            
-            self.visited_orientation[coord]['visited'].add(self.orientation)
-            #------------------------------------------
-    
-            #check length of visited_orientation[coord]['visited'] 
-            #if length is 8, then all orientations have been visited
-            #         
-            if len(self.visited_orientation[coord]['visited']) != 8:
-                #---------CHECK IF THERE IS A PATH ------------
-
-            #check if there is a path in the current orientation using the line sensor
-                line_sensor = self.measures.lineSensor
-                print("LineSensor", line_sensor)
-
-                if line_sensor == ['0','0','1','1','1','0','0']:
-                    print("Path in orientation", self.orientation)
-                    #switch case to get the orientation
-                    match self.orientation:
-                        case "N":
-                            self.paths[north_id] = 1
-                        case "NE":
-                            self.paths[north_east_id] = 1
-                        case "E":
-                            self.paths[east_id] = 1
-                        case "SE":
-                            self.paths[south_east_id] = 1
-                        case "S":
-                            self.paths[south_id] = 1
-                        case "SW":
-                            self.paths[south_west_id] = 1
-                        case "W":
-                            self.paths[west_id] = 1
-                        case "NW":
-                            self.paths[north_west_id] = 1
-                        case _:
-                            print("Orientation not found")
-
-                self.driveMotors(0.07,-0.07)
-
-
-            #proceed to new coordinates
-            else:
+            if coord == (self.new_x, self.new_y):
                 
-                print("all orientations visited")
+                #---------ADDING ORIENTATION VISITED-----------
+                #get list of keys coord from visited_orientation
+                if coord not in self.visited_orientation.keys():
+                    self.paths = [0,0,0,0,0,0,0,0]
+                    self.visited_orientation[coord] = {'visited': set()}
+                
+                self.visited_orientation[coord]['visited'].add(self.orientation)
+                #------------------------------------------
+        
+                #check length of visited_orientation[coord]['visited'] 
+                #if length is 8, then all orientations have been visited
+                #         
+                if len(self.visited_orientation[coord]['visited']) != 8:
+                        #---------CHECK IF THERE IS A PATH ------------
+
+                #check if there is a path in the current orientation using the line sensor
+                    line_sensor = self.measures.lineSensor
+                    print("LineSensor", line_sensor)    
+
+                    if line_sensor == ['0','0','1','1','1','0','0']:
+                        print("Path in orientation", self.orientation)
+                        #switch case to get the orientation
+                        match self.orientation:
+                            case "N":
+                                self.paths[north_id] = 1
+                            case "NE":
+                                self.paths[north_east_id] = 1
+                            case "E":
+                                self.paths[east_id] = 1
+                            case "SE":
+                                self.paths[south_east_id] = 1
+                            case "S":
+                                self.paths[south_id] = 1
+                            case "SW":
+                                self.paths[south_west_id] = 1
+                            case "W":
+                                self.paths[west_id] = 1
+                            case "NW":
+                                self.paths[north_west_id] = 1
+                            case _:
+                                print("Orientation not found")
+
+                    self.driveMotors(0.07,-0.07)
 
 
-                print("visited orientations:", self.visited_orientation)
-                print("X:",x, " Y:",y)
+                #proceed to new coordinates
+                else:
+                    
+                    print("all orientations visited")
 
-                # generic case adapt for the first one
-                # TODO instead of '-1' must be 0 or 1, the values must already be known
-                #curr_x = 0
-                #curr_y = 0
 
-                ## run the following code only one time for each cell
-                if self.state[5-y][12+x] is None:
-                    cell = Cell()
-                    cell.visited = True
-                    cell.coords = (x,y)
-                    cell.paths = self.paths
-                    self.state[5-y][12+x] = cell
-                print("state: visited: ", self.state[5-y][12+x].visited, "coords: ", self.state[5-y][12+x].coords, "paths: ", self.state[5-y][12+x].paths)
-                # TODO adapt to the 8 surrounding cells:
-                #                       x,y+1
-                #            x-1,y+1             x+1,y+1
-                #            x-1,y      x,y      x+1,y
-                #            x-1,y-1             x+1,y-1
-                #                       x,y-1
-                # 
+                    print("visited orientations:", self.visited_orientation)
+                    print("X:",x, " Y:",y)
+                    #stop the robot
 
-                # Determine an unexplored path
-                possible_paths = [i for i, path in enumerate(self.paths) if path == 1]
-                # use possible path indexs to get the orientation
-                print("possible orientations:", [self.possible_orientations[i] for i in possible_paths])
-                # prestar atenção à direcao previa para eliminar essa das possiveis, por ex, se veio de este, nao pode ir para oeste
-                #for row in self.state:
-                #    print(" ".join(str(cell) if cell is not None else "None" for cell in row))
+                    # generic case adapt for the first one
+                    # TODO instead of '-1' must be 0 or 1, the values must already be known
+                    #curr_x = 0
+                    #curr_y = 0
 
-                #pass
+                    ## run the following code only one time for each cell
+                    if self.state[5-y][12+x] is None:
+                        cell = Cell()
+                        cell.visited = True
+                        cell.coords = (x,y)
+                        cell.paths = self.paths
+                        self.state[5-y][12+x] = cell
+                    print("state: visited: ", self.state[5-y][12+x].visited, "coords: ", self.state[5-y][12+x].coords, "paths: ", self.state[5-y][12+x].paths)
+                    
+                    # TODO adapt to the 8 surrounding cells:
+                    #                       x,y+1
+                    #            x-1,y+1             x+1,y+1
+                    #            x-1,y      x,y      x+1,y
+                    #            x-1,y-1             x+1,y-1
+                    #                       x,y-1
+                    # 
 
-            
+                    # Determine an unexplored path
+                    if not self.has_new_coords:
+                        possible_paths = [i for i, path in enumerate(self.paths) if path == 1]
+                        # use possible path indexs to get the orientation
+                        print("possible orientations:", [self.possible_orientations[i] for i in possible_paths])
+                        #rotate to one of the  possible orientations
+                        self.rotate_to_orientation([self.possible_orientations[i] for i in possible_paths])
+                    # dict to make the sum of the orientation and the coordinates
+                    if self.new_orientation:
+                        coord_sum = {'N': (0,2), 'NE': (2,2), 'E': (2,0), 'SE': (2,-2), 'S': (0,-2), 'SW': (-2,-2), 'W': (-2,0), 'NW': (-2,2)}
+                        # get the sum of the orientation and the actual coordinates in a tuple
+                        coord_sum = coord_sum[self.orientation]
+                        # get the new coordinates
+                        self.new_x = x + coord_sum[0]
+                        self.new_y = y + coord_sum[1]
+                        self.has_new_coords = True
+                        print("new_x:", self.new_x, "new_y:", self.new_y)
+                        #while self.x and self.y are not the new coordinates self.driveMotors(0.01,0.01)
+
+
+
+                        # prestar atenção à direcao previa para eliminar essa das possiveis, por ex, se veio de este, nao pode ir para oeste
+                        #for row in self.state:
+                        #    print(" ".join(str(cell) if cell is not None else "None" for cell in row))
+
+                        #pass
+
+
+    def rotate_to_orientation(self, possible_paths):
+        orientation_to_angle = {
+            "E": 0,
+            "NE": 45,
+            "N": 90,
+            "NW": 135,
+            "W": 180,
+            "SW": -135,
+            "S": -90,
+            "SE": -45,
+        }
+        #get current orientation
+        curr_orientation = self.measures.compass
+        possible_angles = [orientation_to_angle[po] for po in possible_paths]
+        print("possible angles:", possible_angles)  
+        #calculate difference between current orientation and possible_angles[0]
+        diff = possible_angles[0] - curr_orientation
+        print("diff:", diff)
+        #if diff between -10 and 10 print "rotate slowly"
+        if -10 <= diff <= 10:
+            print("stop")
+            self.driveMotors(0,-0)
+            self.new_orientation = True
+        
+
+
     def myGps(self,x,y):
         #print mygps with 2 decimal places
         print("myX:",round(x-self.start_x,2), " myY:",round(y-self.start_y,2),"\n")
-
+        print("newX:",self.new_x, " newY:",self.new_y,"\n")
         return (round(x-self.start_x), round(y-self.start_y))
             
     def get_orientation(self):
@@ -253,7 +310,6 @@ class MyRob(CRobLinkAngs):
         else:
             self.orientation = "W"
         
-        print("Orientation:", self.orientation)
 
 
 
