@@ -20,7 +20,7 @@ class MyRob(CRobLinkAngs):
     start_y = None
     visited_orientation = {}
     orientation = None
-    paths = [0,0,0,0,0,0,0]
+    paths = [-1,-1,-1,-1,-1,-1,-1,-1]
     possible_orientations = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
     def __init__(self, rob_name, rob_id, angles, host):
         # init system vars
@@ -142,7 +142,7 @@ class MyRob(CRobLinkAngs):
             #---------ADDING ORIENTATION VISITED-----------
             #get list of keys coord from visited_orientation
             if coord not in self.visited_orientation.keys():
-                self.paths = [0,0,0,0,0,0,0]
+                self.paths = [0,0,0,0,0,0,0,0]
                 self.visited_orientation[coord] = {'visited': set()}
             
             self.visited_orientation[coord]['visited'].add(self.orientation)
