@@ -198,14 +198,17 @@ class MyRob(CRobLinkAngs):
 
                 #proceed to new coordinates
                 else:
-                    
+                    for i in range(len(self.paths)):
+                        if self.paths[i] == -1:
+                            self.paths[i] = 0
+                    print(self.paths)
                     print("all orientations visited")
 
 
                     print("visited orientations:", self.visited_orientation)
                     print("X:",x, " Y:",y)
-                    #stop the robot
-
+                    x = int(x/2)
+                    y = int(y/2)
                     # generic case adapt for the first one
                     # TODO instead of '-1' must be 0 or 1, the values must already be known
                     #curr_x = 0
@@ -230,7 +233,7 @@ class MyRob(CRobLinkAngs):
 
                     # Determine an unexplored path
                     if not self.has_new_coords:
-                        possible_paths = [i for i, path in enumerate(self.paths) if path == 1]
+                        possible_paths = [i for i, path in enumerate(self.state[5-y][12+x].paths) if path == 1]
                         # use possible path indexs to get the orientation
                         print("possible orientations:", [self.possible_orientations[i] for i in possible_paths])
                         #rotate to one of the  possible orientations
@@ -253,7 +256,8 @@ class MyRob(CRobLinkAngs):
                         #for row in self.state:
                         #    print(" ".join(str(cell) if cell is not None else "None" for cell in row))
 
-                        #pass
+                # clear vars
+                self.paths = []
 
 
     def rotate_to_orientation(self, possible_paths):
