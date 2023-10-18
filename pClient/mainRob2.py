@@ -26,6 +26,8 @@ class MyRob(CRobLinkAngs):
     new_x = 0
     new_y = 0
     new_orientation = False
+    adjusting = False
+    first_r = True
 
     def __init__(self, rob_name, rob_id, angles, host):
         # init system vars
@@ -137,24 +139,30 @@ class MyRob(CRobLinkAngs):
             # L =  5 - y
             # C = 12 + x 
             x,y =self.myGps(self.measures.x, self.measures.y)
-            print("\nSELF.NEW COORDS\n", self.has_new_coords)
+            print(x,y)
+            #print("\nSELF.NEW COORDS", self.has_new_coords)
             if self.has_new_coords:
-                if x == self.new_x and y == self.new_y:
+                if abs(round(x,1)-self.new_x) <= 0.1 and abs(round(y,1)-self.new_y) <= 0.1:
+                    self.driveMotors(0.0,0.0)
+                    print("-",x, self.new_x, y, self.new_y)
+                    print("stopped")
                     self.has_new_coords = False
                 else:
-                    self.driveMotors(0.05,0.05)
+                    self.driveMotors(0.04,0.04)
 
             self.get_orientation()
             coord = (x,y)
             #visited_orientations_coord = self.get_visited_orientations(coord)
             #print("visited orientations:", visited_orientations_coord)
-            if coord == (self.new_x, self.new_y):
+            #print(coord, "-", coord == (self.new_x, self.new_y))
+            if abs(round(x,1)-self.new_x) <= 0.1 and abs(round(y,1)-self.new_y) <= 0.1:
                 
                 #---------ADDING ORIENTATION VISITED-----------
                 #get list of keys coord from visited_orientation
                 if coord not in self.visited_orientation.keys():
                     self.paths = [0,0,0,0,0,0,0,0]
                     self.visited_orientation[coord] = {'visited': set()}
+                    self.first_r = True
                 
                 self.visited_orientation[coord]['visited'].add(self.orientation)
                 #------------------------------------------
@@ -163,14 +171,19 @@ class MyRob(CRobLinkAngs):
                 #if length is 8, then all orientations have been visited
                 #         
                 if len(self.visited_orientation[coord]['visited']) != 8:
-                        #---------CHECK IF THERE IS A PATH ------------
-
-                #check if there is a path in the current orientation using the line sensor
+                    if self.first_r and len(self.visited_orientation[coord]['visited']) == 2:
+                        for elem in self.visited_orientation[coord]['visited']:
+                            if self.orientation != elem:
+                                self.visited_orientation[coord]['visited'].remove(elem)
+                                break
+                        self.first_r = False
+                    #---------CHECK IF THERE IS A PATH ------------
+                    #check if there is a path in the current orientation using the line sensor
                     line_sensor = self.measures.lineSensor
                     print("LineSensor", line_sensor)    
-
-                    if line_sensor == ['0','0','1','1','1','0','0']:
-                        print("Path in orientation", self.orientation)
+    
+                    if line_sensor[2:5] == ['1','1','1'] or line_sensor[2:5] == ['0','1','1'] or line_sensor[2:5] == ['1','1','0']:
+                        #print("Path in orientation", self.orientation)
                         #switch case to get the orientation
                         match self.orientation:
                             case "N":
@@ -192,7 +205,7 @@ class MyRob(CRobLinkAngs):
                             case _:
                                 print("Orientation not found")
 
-                    self.driveMotors(0.07,-0.07)
+                    self.driveMotors(0.04,-0.04)
 
 
                 #proceed to new coordinates
@@ -200,12 +213,12 @@ class MyRob(CRobLinkAngs):
                     for i in range(len(self.paths)):
                         if self.paths[i] == -1:
                             self.paths[i] = 0
-                    print(self.paths)
-                    print("all orientations visited")
+                    #print(self.paths)
+                    #print("all orientations visited")
 
 
-                    print("visited orientations:", self.visited_orientation)
-                    print("X:",x, " Y:",y)
+                    #print("visited orientations:", self.visited_orientation)
+                    #print("X:",x, " Y:",y)
                     x = int(round(x)/2)
                     y = int(round(y)/2)
                     # generic case adapt for the first one
@@ -217,10 +230,10 @@ class MyRob(CRobLinkAngs):
                     if self.state[5-y][12+x] is None:
                         cell = Cell()
                         cell.visited = True
-                        cell.coords = (x,y)
+                        cell.coords = coord
                         cell.paths = self.paths
                         self.state[5-y][12+x] = cell
-                    print("state: visited: ", self.state[5-y][12+x].visited, "coords: ", self.state[5-y][12+x].coords, "paths: ", self.state[5-y][12+x].paths)
+                    #print("state: visited: ", self.state[5-y][12+x].visited, "coords: ", self.state[5-y][12+x].coords, "paths: ", self.state[5-y][12+x].paths)
                     
                     # TODO adapt to the 8 surrounding cells:
                     #                       x,y+1
@@ -239,13 +252,18 @@ class MyRob(CRobLinkAngs):
                         self.rotate_to_orientation([self.possible_orientations[i] for i in possible_paths])
                     # dict to make the sum of the orientation and the coordinates
                     if self.new_orientation:
+                        self.new_orientation = False
                         coord_sum = {'N': (0,2), 'NE': (2,2), 'E': (2,0), 'SE': (2,-2), 'S': (0,-2), 'SW': (-2,-2), 'W': (-2,0), 'NW': (-2,2)}
+                        #print(coord_sum)
                         # get the sum of the orientation and the actual coordinates in a tuple
                         coord_sum = coord_sum[self.orientation]
+                        #print(coord_sum)
                         # get the new coordinates
-                        self.new_x = x + coord_sum[0]
-                        self.new_y = y + coord_sum[1]
+                        self.new_x = round(self.state[5-y][12+x].coords[0] + coord_sum[0])
+                        self.new_y = round(self.state[5-y][12+x].coords[1] + coord_sum[1])
                         self.has_new_coords = True
+                        print("puta belha")
+                        print(self.state[5-y][12+x].coords[0],self.state[5-y][12+x].coords[1],"---",coord_sum[0],coord_sum[1])
                         print("new_x:", self.new_x, "new_y:", self.new_y)
                         #while self.x and self.y are not the new coordinates self.driveMotors(0.01,0.01)
 
@@ -259,6 +277,7 @@ class MyRob(CRobLinkAngs):
 
 
     def rotate_to_orientation(self, possible_paths):
+        self.adjusting = True
         orientation_to_angle = {
             "E": 0,
             "NE": 45,
@@ -275,27 +294,70 @@ class MyRob(CRobLinkAngs):
         print("possible angles:", possible_angles)  
         #calculate difference between current orientation and possible_angles[0]
         diff = possible_angles[0] - curr_orientation
-        print("diff:", diff)
+        #print("diff:", diff)
         #if diff between -10 and 10 print "rotate slowly"
-        if -10 <= diff <= 10:
-            print("stop")
-            self.driveMotors(0,-0)
+        if abs(diff) == 0 :
+            # If the orientation is within the threshold, stop rotating
+            self.driveMotors(0, 0)
             self.new_orientation = True
-            print("new_orientation:", self.new_orientation)
-            self.has_new_coords = False
-        
+            self.adjusting = False
+            return
+        else:
+            if self.adjusting:
+                if abs(diff) > 180:
+                    if diff >= 0:
+                        if diff > 70:
+                            self.driveMotors(-0.05, 0.05)
+                            return
+                        elif diff > 30:
+                            self.driveMotors(-0.03, 0.03)
+                            return
+                        elif diff > 10:
+                            self.driveMotors(-0.005, 0.005)
+                            return
+                    else:
+                        if diff < -70:
+                            self.driveMotors(0.05, -0.05)
+                            return
+                        elif diff < -30:
+                            self.driveMotors(0.03, -0.03)
+                            return
+                        elif diff < -10:
+                            self.driveMotors(0.005, -0.005)
+                            return
+                else:
+                    if diff < 0:
+                        if diff < -70:
+                            self.driveMotors(0.05, -0.05)
+                            return
+                        elif diff < -30:
+                            self.driveMotors(0.03, -0.03)
+                            return
+                        elif diff < -10:
+                            self.driveMotors(0.005, -0.005)
+                            return
+                    else:
+                        if diff > 70:
+                            self.driveMotors(-0.05, 0.05)
+                            return
+                        elif diff > 30:
+                            self.driveMotors(-0.03, 0.03)
+                            return
+                        elif diff > 10:
+                            self.driveMotors(-0.005, 0.005)
+                            return
 
 
     def myGps(self,x,y):
         #print mygps with 2 decimal places
-        print("myX:",round(x-self.start_x,2), " myY:",round(y-self.start_y,2),"\n")
-        print("newX:",self.new_x, " newY:",self.new_y,"\n")
+        #print("myX:",round(x-self.start_x,2), " myY:",round(y-self.start_y,2),"\n")
+        #print("newX:",self.new_x, " newY:",self.new_y,"\n")
         return (x-self.start_x, y-self.start_y)
             
     def get_orientation(self):
 
         compass = self.measures.compass
-        print("Compass:", compass)
+        #print("Compass:", compass)
         
         if -22.5 <= compass <= 22.5:
             self.orientation = "E"
