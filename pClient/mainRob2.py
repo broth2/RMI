@@ -145,7 +145,7 @@ class MyRob(CRobLinkAngs):
                     self.driveMotors(0.05,0.05)
 
             self.get_orientation()
-            coord = (x,y)
+            coord = (round(x),round(y))
 
             #visited_orientations_coord = self.get_visited_orientations(coord)
             #print("visited orientations:", visited_orientations_coord)
@@ -207,8 +207,8 @@ class MyRob(CRobLinkAngs):
 
                     print("visited orientations:", self.visited_orientation)
                     print("X:",x, " Y:",y)
-                    x = int(x/2)
-                    y = int(y/2)
+                    x = int(round(x)/2)
+                    y = int(round(y)/2)
                     # generic case adapt for the first one
                     # TODO instead of '-1' must be 0 or 1, the values must already be known
                     #curr_x = 0
@@ -257,7 +257,7 @@ class MyRob(CRobLinkAngs):
                         #    print(" ".join(str(cell) if cell is not None else "None" for cell in row))
 
                 # clear vars
-                self.paths = []
+                #self.paths = []
 
 
     def rotate_to_orientation(self, possible_paths):
@@ -290,7 +290,7 @@ class MyRob(CRobLinkAngs):
         #print mygps with 2 decimal places
         print("myX:",round(x-self.start_x,2), " myY:",round(y-self.start_y,2),"\n")
         print("newX:",self.new_x, " newY:",self.new_y,"\n")
-        return (round(x-self.start_x), round(y-self.start_y))
+        return (x-self.start_x, y-self.start_y)
             
     def get_orientation(self):
 
