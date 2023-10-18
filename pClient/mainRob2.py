@@ -145,8 +145,7 @@ class MyRob(CRobLinkAngs):
                     self.driveMotors(0.05,0.05)
 
             self.get_orientation()
-            coord = (round(x),round(y))
-
+            coord = (x,y)
             #visited_orientations_coord = self.get_visited_orientations(coord)
             #print("visited orientations:", visited_orientations_coord)
             if coord == (self.new_x, self.new_y):
@@ -256,8 +255,7 @@ class MyRob(CRobLinkAngs):
                         #for row in self.state:
                         #    print(" ".join(str(cell) if cell is not None else "None" for cell in row))
 
-                # clear vars
-                #self.paths = []
+                #pass
 
 
     def rotate_to_orientation(self, possible_paths):
@@ -283,6 +281,8 @@ class MyRob(CRobLinkAngs):
             print("stop")
             self.driveMotors(0,-0)
             self.new_orientation = True
+            print("new_orientation:", self.new_orientation)
+            self.has_new_coords = False
         
 
 
