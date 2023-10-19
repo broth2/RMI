@@ -164,8 +164,8 @@ class MyRob(CRobLinkAngs):
                     self.distance = None
                     self.prev_distance = None
                 else:
-                    #self.driveMotors(0.04,0.04)
-                    self.follow_line(self.measures.lineSensor)
+                    self.driveMotors(0.04,0.04)
+                    #self.follow_line(self.measures.lineSensor)
 
             self.get_orientation()
             coord = (x,y)
