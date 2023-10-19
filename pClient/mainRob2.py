@@ -122,7 +122,7 @@ class MyRob(CRobLinkAngs):
            or self.measures.irSensor[right_id]  > 5.0\
            or self.measures.irSensor[back_id]   > 5.0:
             print('Rotate left')
-            self.driveMotors(-0.1,+0.1)
+            self.driveMotors(-0.01,+0.1)
         elif self.measures.irSensor[left_id]> 2.7:
             print('Rotate slowly right')
             self.driveMotors(0.1,0.0)
@@ -148,7 +148,8 @@ class MyRob(CRobLinkAngs):
                     print("stopped")
                     self.has_new_coords = False
                 else:
-                    self.driveMotors(0.04,0.04)
+                    if not self.adjusting:
+                        self.driveMotors(0.04,0.04)
 
             self.get_orientation()
             coord = (x,y)
@@ -274,6 +275,9 @@ class MyRob(CRobLinkAngs):
                         #    print(" ".join(str(cell) if cell is not None else "None" for cell in row))
 
                 #pass
+
+
+
 
 
     def rotate_to_orientation(self, possible_paths):
