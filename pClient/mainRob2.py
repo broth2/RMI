@@ -28,6 +28,9 @@ class MyRob(CRobLinkAngs):
     new_orientation = False
     adjusting = False
     first_r = True
+    distance = 0
+    prev_distance = None
+    arrived = True
 
     def __init__(self, rob_name, rob_id, angles, host):
         # init system vars
@@ -139,24 +142,40 @@ class MyRob(CRobLinkAngs):
             # L =  5 - y
             # C = 12 + x 
             x,y =self.myGps(self.measures.x, self.measures.y)
-            print(x,y)
+            #print(x,y, self.measures.compass)
             #print("\nSELF.NEW COORDS", self.has_new_coords)
             if self.has_new_coords:
-                if abs(round(x,1)-self.new_x) <= 0.1 and abs(round(y,1)-self.new_y) <= 0.1:
-                    self.driveMotors(0.0,0.0)
+                #if abs(round(x,1)-self.new_x) <= 0.1 and abs(round(y,1)-self.new_y) <= 0.1:
+                #if round(x)>=self.new_x and round(y)>=self.new_y:
+                self.distance = ((x-self.new_x)**2 + (y-self.new_y)**2)**0.5
+                print("distance", self.distance, "prev", self.prev_distance)
+                if self.prev_distance is None: self.prev_distance = self.distance
+                if self.distance > self.prev_distance:
+                    self.arrived = True
+                    print("arrived")
+                else:
+                    self.arrived = False
+                self.prev_distance = self.distance
+                if self.arrived:
+                    self.driveMotors(0,0)
                     print("-",x, self.new_x, y, self.new_y)
                     print("stopped")
                     self.has_new_coords = False
+                    self.distance = None
+                    self.prev_distance = None
                 else:
-                    self.driveMotors(0.04,0.04)
+                    #self.driveMotors(0.04,0.04)
+                    self.follow_line(self.measures.lineSensor)
 
             self.get_orientation()
             coord = (x,y)
             #visited_orientations_coord = self.get_visited_orientations(coord)
             #print("visited orientations:", visited_orientations_coord)
             #print(coord, "-", coord == (self.new_x, self.new_y))
-            if abs(round(x,1)-self.new_x) <= 0.1 and abs(round(y,1)-self.new_y) <= 0.1:
-                
+            #if abs(round(x,1)-self.new_x) <= 0.1 and abs(round(y,1)-self.new_y) <= 0.1:
+ 
+            if self.arrived:
+                coord = (self.new_x, self.new_y)
                 #---------ADDING ORIENTATION VISITED-----------
                 #get list of keys coord from visited_orientation
                 if coord not in self.visited_orientation.keys():
@@ -180,7 +199,7 @@ class MyRob(CRobLinkAngs):
                     #---------CHECK IF THERE IS A PATH ------------
                     #check if there is a path in the current orientation using the line sensor
                     line_sensor = self.measures.lineSensor
-                    print("LineSensor", line_sensor)    
+                    #print("LineSensor", line_sensor)    
     
                     if line_sensor[2:5] == ['1','1','1'] or line_sensor[2:5] == ['0','1','1'] or line_sensor[2:5] == ['1','1','0']:
                         #print("Path in orientation", self.orientation)
@@ -274,6 +293,38 @@ class MyRob(CRobLinkAngs):
                         #    print(" ".join(str(cell) if cell is not None else "None" for cell in row))
 
                 #pass
+
+    def follow_line(self, arr):
+        first_index = -1
+        last_index = -1
+        for i in range(len(arr)):
+            if arr[i] == '1':
+                first_index = i
+                break
+        for i in range(len(arr)-1, -1, -1):
+            if arr[i] == '1':
+                last_index = i
+                break
+
+        center = (first_index + last_index) / 2
+
+        if first_index==-1 and last_index==-1:
+            print("oh nao oh deus")
+
+        error = center - 3
+
+        if error == 0:
+            self.driveMotors(0.08, 0.08)
+        else:
+            if error > 1 or error < -1:
+                self.driveMotors(0.0, 0.0)
+                self.driveMotors(0.0, 0.0)
+            correction = (0.05 * error)
+            left_motor_speed = 0.02 + correction
+            right_motor_speed = 0.02 - correction
+            self.driveMotors(left_motor_speed, right_motor_speed)
+        
+        return
 
 
     def rotate_to_orientation(self, possible_paths):
