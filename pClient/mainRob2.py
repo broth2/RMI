@@ -8,9 +8,10 @@ CELLROWS=7
 CELLCOLS=14
 
 class Cell():
-    visited = False
-    paths = [-1,-1,-1,-1,-1,-1,-1,-1]
-    coords = None
+    def __init__(self):
+        self.visited = False
+        self.paths = [-1,-1,-1,-1,-1,-1,-1,-1]
+        self.coords = None
 
 
 
@@ -22,6 +23,7 @@ class MyRob(CRobLinkAngs):
     orientation = None
     paths = [-1,-1,-1,-1,-1,-1,-1,-1]
     possible_orientations = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+    coord_sum = {'N': (0,2), 'NE': (2,2), 'E': (2,0), 'SE': (2,-2), 'S': (0,-2), 'SW': (-2,-2), 'W': (-2,0), 'NW': (-2,2)}
     has_new_coords = False
     new_x = 0
     new_y = 0
@@ -110,16 +112,6 @@ class MyRob(CRobLinkAngs):
         right_id = 2
         back_id = 3
         
-        north_id = 0
-        north_east_id = 1
-        east_id = 2
-        south_east_id = 3
-        south_id = 4
-        south_west_id = 5
-        west_id = 6
-        north_west_id = 7
-        
-
         if    self.measures.irSensor[center_id] > 5.0\
            or self.measures.irSensor[left_id]   > 5.0\
            or self.measures.irSensor[right_id]  > 5.0\
@@ -133,12 +125,6 @@ class MyRob(CRobLinkAngs):
             print('Rotate slowly left')
             self.driveMotors(0.0,0.1)
         else:
-            # matriz em que cada elemento é um objeto célula, simulado por uma lista pq sou preguiçoso xd e nao sei se é mais eficiente
-            # tem 3 valores, se foi visitada, as coordenadas e uma lista de 8 valores que dizem se há caminho por pelo angulo iPI, sendo i o indice
-            # exemplo para uma célula que foi visitada, nas coordenadas 13,4, com 2 caminhos descobertos:
-            # [1, (13,4), [-1,-1,1,0,1,0,0,-1]] - [N,NE,E,SE,S,SW,W,NW]
-            # visited , coords, 8 values list que dizem se há caminho por cada angulo
-            # se nao se souber nada sobre o ponto entao ele é 'None'
             # L =  5 - y
             # C = 12 + x 
             x,y =self.myGps(self.measures.x, self.measures.y)
@@ -188,7 +174,7 @@ class MyRob(CRobLinkAngs):
         
                 #check length of visited_orientation[coord]['visited'] 
                 #if length is 8, then all orientations have been visited
-                #         
+                
                 if len(self.visited_orientation[coord]['visited']) != 8:
                     if self.first_r and len(self.visited_orientation[coord]['visited']) == 2:
                         for elem in self.visited_orientation[coord]['visited']:
@@ -203,26 +189,7 @@ class MyRob(CRobLinkAngs):
     
                     if line_sensor[2:5] == ['1','1','1'] or line_sensor[2:5] == ['0','1','1'] or line_sensor[2:5] == ['1','1','0']:
                         #print("Path in orientation", self.orientation)
-                        #switch case to get the orientation
-                        match self.orientation:
-                            case "N":
-                                self.paths[north_id] = 1
-                            case "NE":
-                                self.paths[north_east_id] = 1
-                            case "E":
-                                self.paths[east_id] = 1
-                            case "SE":
-                                self.paths[south_east_id] = 1
-                            case "S":
-                                self.paths[south_id] = 1
-                            case "SW":
-                                self.paths[south_west_id] = 1
-                            case "W":
-                                self.paths[west_id] = 1
-                            case "NW":
-                                self.paths[north_west_id] = 1
-                            case _:
-                                print("Orientation not found")
+                        self.paths[self.possible_orientations.index(self.orientation)] = 1
 
                     self.driveMotors(0.04,-0.04)
 
@@ -252,15 +219,14 @@ class MyRob(CRobLinkAngs):
                         cell.coords = coord
                         cell.paths = self.paths
                         self.state[5-y][12+x] = cell
+                        self.create_neighbours(cell)
+                    else:
+                        self.state[5-y][12+x].visited = True
+                        self.state[5-y][12+x].paths = self.paths
+                        self.create_neighbours(self.state[5-y][12+x])
                     #print("state: visited: ", self.state[5-y][12+x].visited, "coords: ", self.state[5-y][12+x].coords, "paths: ", self.state[5-y][12+x].paths)
                     
-                    # TODO adapt to the 8 surrounding cells:
-                    #                       x,y+1
-                    #            x-1,y+1             x+1,y+1
-                    #            x-1,y      x,y      x+1,y
-                    #            x-1,y-1             x+1,y-1
-                    #                       x,y-1
-                    # 
+                    # TODO handle when cell has been visited and has not:
 
                     # Determine an unexplored path
                     if not self.has_new_coords:
@@ -272,19 +238,18 @@ class MyRob(CRobLinkAngs):
                     # dict to make the sum of the orientation and the coordinates
                     if self.new_orientation:
                         self.new_orientation = False
-                        coord_sum = {'N': (0,2), 'NE': (2,2), 'E': (2,0), 'SE': (2,-2), 'S': (0,-2), 'SW': (-2,-2), 'W': (-2,0), 'NW': (-2,2)}
                         #print(coord_sum)
                         # get the sum of the orientation and the actual coordinates in a tuple
-                        coord_sum = coord_sum[self.orientation]
+                        specific_coord_sum = self.coord_sum[self.orientation]
                         #print(coord_sum)
                         # get the new coordinates
-                        self.new_x = round(self.state[5-y][12+x].coords[0] + coord_sum[0])
-                        self.new_y = round(self.state[5-y][12+x].coords[1] + coord_sum[1])
+                        self.new_x = round(self.state[5-y][12+x].coords[0] + specific_coord_sum[0])
+                        self.new_y = round(self.state[5-y][12+x].coords[1] + specific_coord_sum[1])
                         self.has_new_coords = True
+                        self.shit()
                         print("puta belha")
-                        print(self.state[5-y][12+x].coords[0],self.state[5-y][12+x].coords[1],"---",coord_sum[0],coord_sum[1])
+                        print(self.state[5-y][12+x].coords[0],self.state[5-y][12+x].coords[1],"---",specific_coord_sum[0],specific_coord_sum[1])
                         print("new_x:", self.new_x, "new_y:", self.new_y)
-                        #while self.x and self.y are not the new coordinates self.driveMotors(0.01,0.01)
 
 
 
@@ -293,6 +258,46 @@ class MyRob(CRobLinkAngs):
                         #    print(" ".join(str(cell) if cell is not None else "None" for cell in row))
 
                 #pass
+
+    def shit(self):
+        for line in self.state:
+                for column in line:
+                        if column is None:
+                                print(0, end=" ")
+                        else:
+                                print(1, end=" ")
+                print()
+
+
+    def get_antipodal(self, coord):
+        # transforms a cardinal point like "N" or "SW" to its antipodal 180 degrees away
+        index = self.possible_orientations.index(coord)
+        return self.possible_orientations[(index + 4) % 8]
+    
+    
+    def create_neighbours(self, cell):
+        # fills state with information on surrounding cells
+        print("creating neighbours for", cell.coords)
+        indices_of_paths = [i for i, x in enumerate(cell.paths) if x == 1]
+        orientation_of_paths = [self.possible_orientations[i] for i in indices_of_paths]
+        destination_of_paths = [(self.coord_sum[i][0] + cell.coords[0], self.coord_sum[i][1] + cell.coords[1])for i in orientation_of_paths]
+        antipodal_of_paths = [self.get_antipodal(crdnt) for crdnt in orientation_of_paths]
+        antipodal_index_of_paths = [self.possible_orientations.index(i) for i in antipodal_of_paths]
+        for i in range(len(destination_of_paths)):
+            if self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)] is None:
+                cell = Cell()
+                cell.coords = destination_of_paths[i]
+                cell.paths[antipodal_index_of_paths[i]] = 1
+                self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)] = cell
+            else:
+                # if self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].visited == True:
+                #     return
+                if self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].paths[antipodal_index_of_paths[i]] == -1:
+                    self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].paths[antipodal_index_of_paths[i]] = 1
+                elif self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].paths[antipodal_index_of_paths[i]] == 0:
+                    print("no changes due to info error on", self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].coords, "path", antipodal_of_paths[i])
+                if self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].coords != destination_of_paths[i]:
+                    print("info error, entry is", self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].coords, "but expected it to be", destination_of_paths[i])
 
     def follow_line(self, arr):
         first_index = -1
@@ -342,7 +347,7 @@ class MyRob(CRobLinkAngs):
         #get current orientation
         curr_orientation = self.measures.compass
         possible_angles = [orientation_to_angle[po] for po in possible_paths]
-        print("possible angles:", possible_angles)  
+        #print("possible angles:", possible_angles)  
         #calculate difference between current orientation and possible_angles[0]
         diff = possible_angles[0] - curr_orientation
         #print("diff:", diff)
