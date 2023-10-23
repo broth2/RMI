@@ -28,6 +28,7 @@ class MyRob(CRobLinkAngs):
     new_x = 0
     new_y = 0
     new_orientation = False
+    departure_orientation = None
     adjusting = False
     first_r = True
     distance = 0
@@ -134,9 +135,9 @@ class MyRob(CRobLinkAngs):
                 #if abs(round(x,1)-self.new_x) <= 0.1 and abs(round(y,1)-self.new_y) <= 0.1:
                 #if round(x)>=self.new_x and round(y)>=self.new_y:
                 self.distance = ((x-self.new_x)**2 + (y-self.new_y)**2)**0.5
-                print("distance", self.distance, "prev", self.prev_distance)
+                print("distance", self.distance)
                 if self.prev_distance is None: self.prev_distance = self.distance
-                if self.distance > self.prev_distance:
+                if self.distance==0 or self.distance > self.prev_distance:
                     self.arrived = True
                     print("arrived")
                 else:
@@ -144,11 +145,12 @@ class MyRob(CRobLinkAngs):
                 self.prev_distance = self.distance
                 if self.arrived:
                     self.driveMotors(0,0)
-                    print("-",x, self.new_x, y, self.new_y)
-                    print("stopped")
+                    print("(",x,"-",y,")", "-","(",self.new_x,"-", self.new_y,")")
                     self.has_new_coords = False
                     self.distance = None
                     self.prev_distance = None
+                    self.get_orientation()
+                    self.departure_orientation = self.orientation
                 else:
                     self.driveMotors(0.04,0.04)
                     #self.follow_line(self.measures.lineSensor)
@@ -221,11 +223,12 @@ class MyRob(CRobLinkAngs):
                         self.state[5-y][12+x] = cell
                         self.create_neighbours(cell)
                     else:
-                        self.state[5-y][12+x].visited = True
-                        self.state[5-y][12+x].paths = self.paths
-                        self.create_neighbours(self.state[5-y][12+x])
+                        if not self.state[5-y][12+x].visited:
+                            self.state[5-y][12+x].visited = True
+                            self.state[5-y][12+x].paths = self.paths
+                            self.create_neighbours(self.state[5-y][12+x])
                     #print("state: visited: ", self.state[5-y][12+x].visited, "coords: ", self.state[5-y][12+x].coords, "paths: ", self.state[5-y][12+x].paths)
-                    
+
                     # TODO handle when cell has been visited and has not:
 
                     # Determine an unexplored path
@@ -233,8 +236,9 @@ class MyRob(CRobLinkAngs):
                         possible_paths = [i for i, path in enumerate(self.state[5-y][12+x].paths) if path == 1]
                         # use possible path indexs to get the orientation
                         print("possible orientations:", [self.possible_orientations[i] for i in possible_paths])
+                        destination = self.choose_path(self.departure_orientation, self.state[5-y][12+x])
                         #rotate to one of the  possible orientations
-                        self.rotate_to_orientation([self.possible_orientations[i] for i in possible_paths])
+                        self.rotate_to_orientation(destination)
                     # dict to make the sum of the orientation and the coordinates
                     if self.new_orientation:
                         self.new_orientation = False
@@ -248,7 +252,6 @@ class MyRob(CRobLinkAngs):
                         self.has_new_coords = True
                         self.shit()
                         print("puta belha")
-                        print(self.state[5-y][12+x].coords[0],self.state[5-y][12+x].coords[1],"---",specific_coord_sum[0],specific_coord_sum[1])
                         print("new_x:", self.new_x, "new_y:", self.new_y)
 
 
@@ -331,8 +334,25 @@ class MyRob(CRobLinkAngs):
         
         return
 
+    def choose_path(self, departure_ornt, cell):
+        indices_of_paths = [i for i, x in enumerate(cell.paths) if x == 1]                       # 1, 0, 1, 1
+        orientation_of_paths = [self.possible_orientations[i] for i in indices_of_paths]    # N, S, E, W
+        if departure_ornt is not None:
+            return_path = self.get_antipodal(departure_ornt)
+            orientation_of_paths.remove(return_path)
+            if not orientation_of_paths:
+                return return_path
+        destination_of_paths = [(self.coord_sum[i][0] + cell.coords[0], self.coord_sum[i][1] + cell.coords[1])for i in orientation_of_paths]
+        for i in range(len(destination_of_paths)):
+            if not self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].visited:
+                if -1 not in self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].paths:
+                    continue
+                return orientation_of_paths[i]
+        # TODO percorrer a matriz state toda, encontrar o ponto nao visitado mais proximo e retorna-lo
+        return  self.shit() #final proper print state
 
-    def rotate_to_orientation(self, possible_paths):
+
+    def rotate_to_orientation(self, destination):
         self.adjusting = True
         orientation_to_angle = {
             "E": 0,
@@ -345,11 +365,11 @@ class MyRob(CRobLinkAngs):
             "SE": -45,
         }
         #get current orientation
-        curr_orientation = self.measures.compass
-        possible_angles = [orientation_to_angle[po] for po in possible_paths]
+        curr_angle = self.measures.compass
+        destination_angle = orientation_to_angle[destination]
         #print("possible angles:", possible_angles)  
         #calculate difference between current orientation and possible_angles[0]
-        diff = possible_angles[0] - curr_orientation
+        diff = destination_angle - curr_angle
         #print("diff:", diff)
         #if diff between -10 and 10 print "rotate slowly"
         if abs(diff) == 0 :
