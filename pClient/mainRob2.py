@@ -3,6 +3,7 @@ from croblink import *
 from math import *
 import xml.etree.ElementTree as ET
 import random
+from collections import deque
 
 CELLROWS=7
 CELLCOLS=14
@@ -201,20 +202,11 @@ class MyRob(CRobLinkAngs):
                     for i in range(len(self.paths)):
                         if self.paths[i] == -1:
                             self.paths[i] = 0
-                    #print(self.paths)
-                    #print("all orientations visited")
 
-
-                    #print("visited orientations:", self.visited_orientation)
-                    #print("X:",x, " Y:",y)
                     x = int(round(x)/2)
                     y = int(round(y)/2)
-                    # generic case adapt for the first one
-                    # TODO instead of '-1' must be 0 or 1, the values must already be known
-                    #curr_x = 0
-                    #curr_y = 0
 
-                    ## run the following code only one time for each cell
+                    # fill state matriz with info
                     if self.state[5-y][12+x] is None:
                         cell = Cell()
                         cell.visited = True
@@ -227,9 +219,7 @@ class MyRob(CRobLinkAngs):
                             self.state[5-y][12+x].visited = True
                             self.state[5-y][12+x].paths = self.paths
                             self.create_neighbours(self.state[5-y][12+x])
-                    #print("state: visited: ", self.state[5-y][12+x].visited, "coords: ", self.state[5-y][12+x].coords, "paths: ", self.state[5-y][12+x].paths)
-
-                    # TODO handle when cell has been visited and has not:
+                            # TODO something when cell has been visited?
 
                     # Determine an unexplored path
                     if not self.has_new_coords:
@@ -237,16 +227,11 @@ class MyRob(CRobLinkAngs):
                         # use possible path indexs to get the orientation
                         print("possible orientations:", [self.possible_orientations[i] for i in possible_paths])
                         destination = self.choose_path(self.departure_orientation, self.state[5-y][12+x])
-                        #rotate to one of the  possible orientations
                         self.rotate_to_orientation(destination)
-                    # dict to make the sum of the orientation and the coordinates
+
                     if self.new_orientation:
                         self.new_orientation = False
-                        #print(coord_sum)
-                        # get the sum of the orientation and the actual coordinates in a tuple
                         specific_coord_sum = self.coord_sum[self.orientation]
-                        #print(coord_sum)
-                        # get the new coordinates
                         self.new_x = round(self.state[5-y][12+x].coords[0] + specific_coord_sum[0])
                         self.new_y = round(self.state[5-y][12+x].coords[1] + specific_coord_sum[1])
                         self.has_new_coords = True
@@ -254,13 +239,6 @@ class MyRob(CRobLinkAngs):
                         print("puta belha")
                         print("new_x:", self.new_x, "new_y:", self.new_y)
 
-
-
-                        # prestar atenção à direcao previa para eliminar essa das possiveis, por ex, se veio de este, nao pode ir para oeste
-                        #for row in self.state:
-                        #    print(" ".join(str(cell) if cell is not None else "None" for cell in row))
-
-                #pass
 
     def shit(self):
         for line in self.state:
@@ -348,9 +326,42 @@ class MyRob(CRobLinkAngs):
                 if -1 not in self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].paths:
                     continue
                 return orientation_of_paths[i]
-        # TODO percorrer a matriz state toda, encontrar o ponto nao visitado mais proximo e retorna-lo
-        return  self.shit() #final proper print state
+        # TODO percorrer a matriz state toda, encontrar o ponto nao visitado mais proximo e retorna-lo, ja que nao é nenhum dos 8 envolventes
+        self.closest_cell(cell)     # TODO this should return an orientation
+        return #final proper print state
 
+    
+    def closest_cell(self, curr_cell):
+        visited_cells = set()
+        visited_cells.add(curr_cell)
+        queue = deque([(curr_cell,0,[])])
+
+        while queue:
+            actual, moves, parents = queue.popleft()
+            if not actual.visted:
+                return parents[0]   #should be an orientation
+            
+            neighbours = self.get_neighbours(actual)
+
+            for neighbour in neighbours:
+                if not neighbour.visited:
+                    return parents[0]   #should be an orientation
+                if neighbour not in visited_cells:
+                    parents.append[neighbour]
+                    queue.append((neighbour, moves+1, parents))
+                    visited_cells.add(neighbour)
+        return -1 # no more unvisited nodes
+
+    def get_neighbours(self, cell):
+        neighbors = []
+        
+        indices_of_paths = [i for i, x in enumerate(cell.paths) if x == 1]
+        orientation_of_paths = [self.possible_orientations[i] for i in indices_of_paths]
+        destination_of_paths = [(self.coord_sum[i][0] + cell.coords[0], self.coord_sum[i][1] + cell.coords[1])for i in orientation_of_paths]
+        for new_x, new_y in destination_of_paths:
+            neighbors.append(self.state[5-int(new_y/2)][12+int(new_x/2)])
+
+        return neighbors
 
     def rotate_to_orientation(self, destination):
         self.adjusting = True
