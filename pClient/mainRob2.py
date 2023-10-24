@@ -177,7 +177,7 @@ class MyRob(CRobLinkAngs):
         
                 #check length of visited_orientation[coord]['visited'] 
                 #if length is 8, then all orientations have been visited
-                
+                # TODO if detected more than 4 paths, rotate again (max is 4)
                 if len(self.visited_orientation[coord]['visited']) != 8:
                     if self.first_r and len(self.visited_orientation[coord]['visited']) == 2:
                         for elem in self.visited_orientation[coord]['visited']:
