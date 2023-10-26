@@ -35,6 +35,7 @@ class MyRob(CRobLinkAngs):
     distance = 0
     prev_distance = None
     arrived = True
+    finished = False
 
     def __init__(self, rob_name, rob_id, angles, host):
         # init system vars
@@ -127,6 +128,7 @@ class MyRob(CRobLinkAngs):
             print('Rotate slowly left')
             self.driveMotors(0.0,0.1)
         else:
+            if self.finished: return
             # L =  5 - y
             # C = 12 + x 
             x,y =self.myGps(self.measures.x, self.measures.y)
@@ -173,11 +175,15 @@ class MyRob(CRobLinkAngs):
                     self.first_r = True
                 
                 self.visited_orientation[coord]['visited'].add(self.orientation)
+
+                # TODO if detected more than 4 paths, rotate again (max is 4)
+                # if len(self.visited_orientation[coord]['visited'])>4:
+                #     self.paths = [0,0,0,0,0,0,0,0]
+                #     self.visited_orientation[coord] = {'visited': set()}
                 #------------------------------------------
         
                 #check length of visited_orientation[coord]['visited'] 
                 #if length is 8, then all orientations have been visited
-                # TODO if detected more than 4 paths, rotate again (max is 4)
                 if len(self.visited_orientation[coord]['visited']) != 8:
                     if self.first_r and len(self.visited_orientation[coord]['visited']) == 2:
                         for elem in self.visited_orientation[coord]['visited']:
@@ -227,6 +233,9 @@ class MyRob(CRobLinkAngs):
                         # use possible path indexs to get the orientation
                         print("possible orientations:", [self.possible_orientations[i] for i in possible_paths])
                         destination = self.choose_path(self.departure_orientation, self.state[5-y][12+x])
+                        if destination is None:
+                            self.finished = True
+                            return
                         self.rotate_to_orientation(destination)
 
                     if self.new_orientation:
@@ -326,9 +335,7 @@ class MyRob(CRobLinkAngs):
                 if -1 not in self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].paths:
                     continue
                 return orientation_of_paths[i]
-        # TODO percorrer a matriz state toda, encontrar o ponto nao visitado mais proximo e retorna-lo, ja que nao é nenhum dos 8 envolventes
-        self.closest_cell(cell)     # TODO this should return an orientation
-        return #final proper print state
+        return self.closest_cell(cell)
 
     
     def closest_cell(self, curr_cell):
@@ -338,19 +345,22 @@ class MyRob(CRobLinkAngs):
 
         while queue:
             actual, moves, parents = queue.popleft()
-            if not actual.visted:
-                return parents[0]   #should be an orientation
+            if not actual.visited:
+                print("return 0", actual.coords)
+                return self.cell_to_orientation(curr_cell,parents[0])
             
             neighbours = self.get_neighbours(actual)
 
             for neighbour in neighbours:
                 if not neighbour.visited:
-                    return parents[0]   #should be an orientation
+                    print("return 1", neighbour.coords)
+                    return self.cell_to_orientation(curr_cell,parents[0])
                 if neighbour not in visited_cells:
-                    parents.append[neighbour]
+                    parents.append(neighbour)
                     queue.append((neighbour, moves+1, parents))
                     visited_cells.add(neighbour)
-        return -1 # no more unvisited nodes
+        self.create_map()
+        return # no more unvisited nodes
 
     def get_neighbours(self, cell):
         neighbors = []
@@ -362,6 +372,14 @@ class MyRob(CRobLinkAngs):
             neighbors.append(self.state[5-int(new_y/2)][12+int(new_x/2)])
 
         return neighbors
+    
+    def cell_to_orientation(self, start, end):
+        indices_of_paths = [i for i, x in enumerate(start.paths) if x == 1]
+        orientation_of_paths = [self.possible_orientations[i] for i in indices_of_paths]
+        destination_of_paths = [(self.coord_sum[i][0] + start.coords[0], self.coord_sum[i][1] + start.coords[1])for i in orientation_of_paths]
+        for i, dest in enumerate(destination_of_paths):
+            if dest==end.coords:
+                return orientation_of_paths[i]
 
     def rotate_to_orientation(self, destination):
         self.adjusting = True
@@ -463,8 +481,44 @@ class MyRob(CRobLinkAngs):
         else:
             self.orientation = "W"
         
+    def create_map(self):
+        for line in self.state:
+            print("  ", end="")
+            for column in line:
+                print("+", end="")
+                if column is None:
+                    print("  ", end="")
+                    continue
+                if column.paths[2]==1:
+                    print("--", end="")
+                else:
+                    print("  ", end="")
+            print()
+            ocuppied = False
+            for column in line:
+                if column is None:
+                    if not ocuppied:
+                        print("   ", end="")
+                    else:
+                        print(" ", end="")
+                    ocuppied = False
+                    continue
+                if not ocuppied:    # free space
+                    if column.paths[5]==1:
+                        print("/ ", end="")
+                    else:
+                        print("  ", end="")
 
-
+                ocuppied = False
+                if column.paths[4]==1:
+                    print("|", end="")
+                else:
+                    print(" ", end="")
+                
+                if column.paths[3]==1:
+                    print("\\ ", end="")
+                    ocuppied = True
+            print()
 
 
 class Map():
