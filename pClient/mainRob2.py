@@ -35,6 +35,7 @@ class MyRob(CRobLinkAngs):
     distance = 0
     prev_distance = None
     arrived = True
+    finished = False
 
     def __init__(self, rob_name, rob_id, angles, host):
         # init system vars
@@ -127,6 +128,7 @@ class MyRob(CRobLinkAngs):
             print('Rotate slowly left')
             self.driveMotors(0.0,0.1)
         else:
+            if self.finished: return
             # L =  5 - y
             # C = 12 + x 
             x,y =self.myGps(self.measures.x, self.measures.y)
@@ -232,6 +234,7 @@ class MyRob(CRobLinkAngs):
                         print("possible orientations:", [self.possible_orientations[i] for i in possible_paths])
                         destination = self.choose_path(self.departure_orientation, self.state[5-y][12+x])
                         if destination is None:
+                            self.finished = True
                             return
                         self.rotate_to_orientation(destination)
 
@@ -356,7 +359,7 @@ class MyRob(CRobLinkAngs):
                     parents.append(neighbour)
                     queue.append((neighbour, moves+1, parents))
                     visited_cells.add(neighbour)
-        # TODO print matrix
+        self.create_map()
         return # no more unvisited nodes
 
     def get_neighbours(self, cell):
@@ -478,8 +481,44 @@ class MyRob(CRobLinkAngs):
         else:
             self.orientation = "W"
         
+    def create_map(self):
+        for line in self.state:
+            print("  ", end="")
+            for column in line:
+                print("+", end="")
+                if column is None:
+                    print("  ", end="")
+                    continue
+                if column.paths[2]==1:
+                    print("--", end="")
+                else:
+                    print("  ", end="")
+            print()
+            ocuppied = False
+            for column in line:
+                if column is None:
+                    if not ocuppied:
+                        print("   ", end="")
+                    else:
+                        print(" ", end="")
+                    ocuppied = False
+                    continue
+                if not ocuppied:    # free space
+                    if column.paths[5]==1:
+                        print("/ ", end="")
+                    else:
+                        print("  ", end="")
 
-
+                ocuppied = False
+                if column.paths[4]==1:
+                    print("|", end="")
+                else:
+                    print(" ", end="")
+                
+                if column.paths[3]==1:
+                    print("\\ ", end="")
+                    ocuppied = True
+            print()
 
 
 class Map():
