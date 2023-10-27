@@ -144,7 +144,7 @@ class MyRob(CRobLinkAngs):
         right_id = 2
         back_id = 3
         #print Line Sensor values
-        print("LineSensor", self.measures.lineSensor)
+        #print("LineSensor", self.measures.lineSensor)
 
 
         if    self.measures.irSensor[center_id] > 5.0\
@@ -161,21 +161,25 @@ class MyRob(CRobLinkAngs):
             self.driveMotors(0.0,0.1)
         else:
             # Calculate error
+            if self.measures.ground != -1:
+                self.lost_count=0
             self.store_sensor_values(self.measures.lineSensor)
             error = self.calculate_error(self.measures.lineSensor)
             if error==-10:
                 self.driveMotors(-0.10, -0.10)
-                if self.lost_count <= 15:
-                    self.driveMotors(-0.06,0.06)
+                if self.lost_count <= 14:
+                    self.driveMotors(-0.07,0.07)
                     self.lost_count = self.lost_count + 1
-                    print("turning left")
-                elif 15 < self.lost_count <= 30 :
-                    self.driveMotors(0.1,-0.1)              # se eu mudar alguma coisa que seja de 0.1 para 0.12 no maximo
-                    self.lost_count = self.lost_count + 1
-                    print("turning right")
+                    print("x-turning left", self.lost_count)
+                elif 14 < self.lost_count <= 30 :
+                    self.driveMotors(0.13,-0.13)              # se eu mudar alguma coisa que nao seja para 0.12 pq isso fá lo ficar simetrico
+                    self.lost_count = self.lost_count + 1   # TODO mudar a linha acima para dar fine tune da itensidade das curvas
+                    print("x-turning right", self.lost_count)
                 else:
                     self.lost_count = 0
                     print("resetting")
+                    self.driveMotors(-0.06,-0.06)
+                    self.lost_count = self.lost_count + 1
                 # rndm = random.randint(0, 1)
                 # for i in range(6):
                 #     if rndm:
@@ -184,6 +188,10 @@ class MyRob(CRobLinkAngs):
                 #         self.driveMotors(0.15,-0.15)
                 #self.driveMotors(-0.15, -0.15)
                 return
+            else:
+                #self.lost_count = 0
+                #print("not -10")
+                pass
             self.detect90()
             #print("Error", error, "\n")
 
@@ -243,7 +251,7 @@ class MyRob(CRobLinkAngs):
 
         if first_index==-1 and last_index==-1:
             #return ultimo movimento
-            print("ALL ZERO CASE")
+            #print("ALL ZERO CASE")
             #print("prev error:", self.prev_err, "curr error:", self.curr_err)
             #self.driveMotors(0,0)
             #return -1
@@ -251,7 +259,7 @@ class MyRob(CRobLinkAngs):
             if self.curr_err is None:
                 return -3               #in case initial orientation is not horizontal
             return -10
-        self.lost_count = 0
+        #self.lost_count = 0
         #now we need to find the error
         error = center - 3
 
