@@ -128,7 +128,7 @@ class MyRob(CRobLinkAngs):
             print('Rotate slowly left')
             self.driveMotors(0.0,0.1)
         else:
-            if self.finished: return
+            if self.finished: exit(0)
             # L =  5 - y
             # C = 12 + x 
             x,y =self.myGps(self.measures.x, self.measures.y)
@@ -140,9 +140,9 @@ class MyRob(CRobLinkAngs):
                 self.distance = ((x-self.new_x)**2 + (y-self.new_y)**2)**0.5
                 print("distance", self.distance)
                 if self.prev_distance is None: self.prev_distance = self.distance
-                if self.distance==0 or self.distance > self.prev_distance:
+                if self.distance==0 or (self.distance > self.prev_distance and round(self.distance,1)<=0.1):
                     self.arrived = True
-                    print("arrived")
+                    #print("arrived")
                 else:
                     self.arrived = False
                 self.prev_distance = self.distance
@@ -155,8 +155,11 @@ class MyRob(CRobLinkAngs):
                     self.get_orientation()
                     self.departure_orientation = self.orientation
                 else:
-                    self.driveMotors(0.04,0.04)
-                    #self.follow_line(self.measures.lineSensor)
+                    if round(self.distance,1)>1:
+                    #self.driveMotors(0.04,0.04)
+                        self.follow_line(self.measures.lineSensor)
+                    else:
+                        self.driveMotors(0.04,0.04)
 
             self.get_orientation()
             coord = (x,y)
@@ -231,7 +234,7 @@ class MyRob(CRobLinkAngs):
                     if not self.has_new_coords:
                         possible_paths = [i for i, path in enumerate(self.state[5-y][12+x].paths) if path == 1]
                         # use possible path indexs to get the orientation
-                        print("possible orientations:", [self.possible_orientations[i] for i in possible_paths])
+                        #print("possible orientations:", [self.possible_orientations[i] for i in possible_paths])
                         destination = self.choose_path(self.departure_orientation, self.state[5-y][12+x])
                         if destination is None:
                             self.finished = True
@@ -244,9 +247,10 @@ class MyRob(CRobLinkAngs):
                         self.new_x = round(self.state[5-y][12+x].coords[0] + specific_coord_sum[0])
                         self.new_y = round(self.state[5-y][12+x].coords[1] + specific_coord_sum[1])
                         self.has_new_coords = True
-                        self.shit()
-                        print("puta belha")
-                        print("new_x:", self.new_x, "new_y:", self.new_y)
+                        #self.shit()
+                        #print("puta belha")
+                        print("new_x:", self.new_x, "new_y:", self.new_y, "\n")
+                        #self.create_map()
 
 
     def shit(self):
@@ -267,7 +271,7 @@ class MyRob(CRobLinkAngs):
     
     def create_neighbours(self, cell):
         # fills state with information on surrounding cells
-        print("creating neighbours for", cell.coords)
+        # print("creating neighbours for", cell.coords)
         indices_of_paths = [i for i, x in enumerate(cell.paths) if x == 1]
         orientation_of_paths = [self.possible_orientations[i] for i in indices_of_paths]
         destination_of_paths = [(self.coord_sum[i][0] + cell.coords[0], self.coord_sum[i][1] + cell.coords[1])for i in orientation_of_paths]
@@ -309,12 +313,12 @@ class MyRob(CRobLinkAngs):
         error = center - 3
 
         if error == 0:
-            self.driveMotors(0.08, 0.08)
+            self.driveMotors(0.06, 0.06)
         else:
             if error > 1 or error < -1:
                 self.driveMotors(0.0, 0.0)
                 self.driveMotors(0.0, 0.0)
-            correction = (0.05 * error)
+            correction = (0.04 * error)
             left_motor_speed = 0.02 + correction
             right_motor_speed = 0.02 - correction
             self.driveMotors(left_motor_speed, right_motor_speed)
@@ -322,6 +326,7 @@ class MyRob(CRobLinkAngs):
         return
 
     def choose_path(self, departure_ornt, cell):
+        print("choose path")
         indices_of_paths = [i for i, x in enumerate(cell.paths) if x == 1]                       # 1, 0, 1, 1
         orientation_of_paths = [self.possible_orientations[i] for i in indices_of_paths]    # N, S, E, W
         if departure_ornt is not None:
@@ -331,10 +336,15 @@ class MyRob(CRobLinkAngs):
                 return return_path
         destination_of_paths = [(self.coord_sum[i][0] + cell.coords[0], self.coord_sum[i][1] + cell.coords[1])for i in orientation_of_paths]
         for i in range(len(destination_of_paths)):
+            print("entrei no for")
             if not self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].visited:
+                print("entrei no if")
                 if -1 not in self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].paths:
+                    print("entrei no if manhoso")
                     continue
+                print("retornei", orientation_of_paths[i])
                 return orientation_of_paths[i]
+        print("vou para a closest cell")
         return self.closest_cell(cell)
 
     
@@ -350,14 +360,17 @@ class MyRob(CRobLinkAngs):
                 return self.cell_to_orientation(curr_cell,parents[0])
             
             neighbours = self.get_neighbours(actual)
-
             for neighbour in neighbours:
                 if not neighbour.visited:
                     print("return 1", neighbour.coords)
                     return self.cell_to_orientation(curr_cell,parents[0])
                 if neighbour not in visited_cells:
-                    parents.append(neighbour)
-                    queue.append((neighbour, moves+1, parents))
+                    new_parents = []
+                    for p in parents:
+                        new_parents.append(p)
+                    new_parents.append(neighbour)
+                    new_moves = moves
+                    queue.append((neighbour, new_moves+1, new_parents))
                     visited_cells.add(neighbour)
         self.create_map()
         return # no more unvisited nodes
