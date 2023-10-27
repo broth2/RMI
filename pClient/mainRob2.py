@@ -128,7 +128,11 @@ class MyRob(CRobLinkAngs):
             print('Rotate slowly left')
             self.driveMotors(0.0,0.1)
         else:
-            if self.finished: exit(0)
+            if int(self.simTime)-self.measures.time<4:
+                self.create_map()
+            if self.finished: 
+                self.finish()
+                return
             # L =  5 - y
             # C = 12 + x 
             x,y =self.myGps(self.measures.x, self.measures.y)
@@ -239,9 +243,7 @@ class MyRob(CRobLinkAngs):
                         if destination is None:
                             self.finished = True
                             return
-                        print("retornei isto", destination)
                         self.rotate_to_orientation(destination)
-                        print("sai do rotate to orientation")
 
                     if self.new_orientation:
                         self.new_orientation = False
@@ -252,7 +254,7 @@ class MyRob(CRobLinkAngs):
                         #self.shit()
                         #print("puta belha")
                         print("new_x:", self.new_x, "new_y:", self.new_y, "\n")
-                        #self.create_map()
+                        self.create_map()
 
 
     def shit(self):
@@ -328,7 +330,6 @@ class MyRob(CRobLinkAngs):
         return
 
     def choose_path(self, departure_ornt, cell):
-        print("choose path")
         indices_of_paths = [i for i, x in enumerate(cell.paths) if x == 1]                       # 1, 0, 1, 1
         orientation_of_paths = [self.possible_orientations[i] for i in indices_of_paths]    # N, S, E, W
         if departure_ornt is not None:
@@ -338,15 +339,10 @@ class MyRob(CRobLinkAngs):
                 return return_path
         destination_of_paths = [(self.coord_sum[i][0] + cell.coords[0], self.coord_sum[i][1] + cell.coords[1])for i in orientation_of_paths]
         for i in range(len(destination_of_paths)):
-            print("entrei no for")
             if not self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].visited:
-                print("entrei no if")
                 if -1 not in self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].paths:
-                    print("entrei no if manhoso")
                     continue
-                print("retornei", orientation_of_paths[i])
                 return orientation_of_paths[i]
-        print("vou para a closest cell")
         return self.closest_cell(cell)
 
     
@@ -456,6 +452,9 @@ class MyRob(CRobLinkAngs):
                         elif diff < -10:
                             self.driveMotors(0.005, -0.005)
                             return
+                        else:
+                            self.driveMotors(0.005, -0.005)
+                            return
                     else:
                         if diff > 70:
                             self.driveMotors(-0.05, 0.05)
@@ -464,6 +463,9 @@ class MyRob(CRobLinkAngs):
                             self.driveMotors(-0.03, 0.03)
                             return
                         elif diff > 10:
+                            self.driveMotors(-0.005, 0.005)
+                            return
+                        else:
                             self.driveMotors(-0.005, 0.005)
                             return
 
@@ -545,7 +547,7 @@ class MyRob(CRobLinkAngs):
 
         with open('output.txt', 'w') as file:
             print(mapa, file=file)
-            print(mapa)
+            #print(mapa)
 
 
 class Map():
