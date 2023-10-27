@@ -38,7 +38,7 @@ class MyRob(CRobLinkAngs):
     stack = []
     orientation_rules = {
         'N': ['W', 'NW', 'N', 'NE', 'E'],
-        'NE': ['NW', 'N', 'NE', 'SE', 'E'],
+        'NE': ['NW', 'N', 'NE', 'E', 'SE'],
         'E': ['N', 'NE', 'E', 'SE', 'S'],
         'SE': ['NE', 'E', 'SE', 'S', 'SW'],
         'S': ['E', 'SE', 'S', 'SW', 'W'],
@@ -153,10 +153,11 @@ class MyRob(CRobLinkAngs):
                 #if round(x)>=self.new_x and round(y)>=self.new_y:
                 self.distance = ((x-self.new_x)**2 + (y-self.new_y)**2)**0.5
                 print("distance", self.distance)
-                
-                if abs(x-self.new_x) <= 0.1 and abs(y-self.new_y) <= 0.1:
+                if abs(x-self.new_x) == 0 and abs(y-self.new_y) <= 0:
                     #adjust until perfect coordinates
-                    self.driveMotors(0,0)
+                    self.driveMotors
+                    (0.03,0.03)
+                    self.appendInfo(x,y,self.measures.lineSensor)
                     print("stopped")
                     self.arrived = True
                 else:
@@ -167,15 +168,17 @@ class MyRob(CRobLinkAngs):
                     print("(",x,"-",y,")", "-","(",self.new_x,"-", self.new_y,")")
                     self.has_new_coords = False
                     self.distance = None
+                    self.appendInfo(x,y,self.measures.lineSensor)
                     print("stack", self.stack)
                     self.prev_distance = None
                     self.get_orientation()
                     self.departure_orientation = self.orientation
+                    return
                 else:
-                    self.driveMotors(0.05,0.05)
+                    #self.driveMotors(0.05,0.05)
                     print("A MEXER ME")
-                    
-                    #self.moveTo(self.new_x, self.new_y,x,y)
+        
+                    self.moveTo(self.new_x, self.new_y,x,y)
                     self.appendInfo(x,y,self.measures.lineSensor)
                     #self.follow_line(self.measures.lineSensor)
 
@@ -185,24 +188,28 @@ class MyRob(CRobLinkAngs):
             #print("visited orientations:", visited_orientations_coord)
             #print(coord, "-", coord == (self.new_x, self.new_y))
             #if abs(round(x,1)-self.new_x) <= 0.1 and abs(round(y,1)-self.new_y) <= 0.1:
-            print("aqui else after move")
+
             if self.arrived:
-                print("arrive")
                 coord = (self.new_x, self.new_y)
                 while self.stack:
                     elem = self.stack.pop()
                     if not all(x == '0' for x in elem[3]):
-                        print("elem", elem)
-                        #eval Elem 
-                        possible_orientations = self.possibleOrientation(elem)
-                        values = elem[3]
-                        self.lineEval(possible_orientations, values)
-                        print("possible paths", self.possiblePaths)
+                            #elem[[3] must have more than 1 one
+                            print("ELEM 0", elem[0])
+                            print("ELEM 1", elem[1])
+                            print("ELEM 2", elem[2])
+                            print("ELEM 3", elem[3])
+                            #eval Elem 
+                            possible_orientations = self.possibleOrientation(elem)
+                            values = elem[3]
+                            self.lineEval(possible_orientations, values)
+                            print("possible paths", self.possiblePaths)
 
-                        self.paths = self.find_indices(self.possiblePaths)
-                        print("self.paths", self.paths)
-                        self.stack = []
-                        self.possiblePaths.clear()
+                            self.paths = self.find_indices(self.possiblePaths)
+                            print("self.paths", self.paths)
+                            self.possiblePaths.clear()
+                            self.stack = []
+
 
                                                 
                 for i in range(len(self.paths)):
@@ -262,7 +269,16 @@ class MyRob(CRobLinkAngs):
         return indices
 
 
-
+    def moveTo(self,target_x, target_y,x,y):
+        print("moving to", target_x, target_y)
+        print("current position", x, y)
+        delta = atan2(target_y - y, target_x - x)
+        print ("\ndelta\n", delta)
+        alfa = self.measures.compass
+        #convert alfa to radians    
+        alfa = alfa * pi/180
+        beta = delta - alfa
+        self.driveMotors(0.07 - 0.03 * beta, 0.07 + 0.03 * beta)
 
     def possibleOrientation(self, elem):
 
@@ -325,50 +341,20 @@ class MyRob(CRobLinkAngs):
                 if self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].coords != destination_of_paths[i]:
                     print("info error, entry is", self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].coords, "but expected it to be", destination_of_paths[i])
 
-    def follow_line(self, arr):
-        first_index = -1
-        last_index = -1
-        for i in range(len(arr)):
-            if arr[i] == '1':
-                first_index = i
-                break
-        for i in range(len(arr)-1, -1, -1):
-            if arr[i] == '1':
-                last_index = i
-                break
-
-        center = (first_index + last_index) / 2
-
-        if first_index==-1 and last_index==-1:
-            print("oh nao oh deus")
-
-        error = center - 3
-
-        if error == 0:
-            self.driveMotors(0.08, 0.08)
-        else:
-            if error > 1 or error < -1:
-                self.driveMotors(0.0, 0.0)
-                self.driveMotors(0.0, 0.0)
-            correction = (0.05 * error)
-            left_motor_speed = 0.02 + correction
-            right_motor_speed = 0.02 - correction
-            self.driveMotors(left_motor_speed, right_motor_speed)
-        
-        return
 
     def choose_path(self, departure_ornt, cell):
         indices_of_paths = [i for i, x in enumerate(cell.paths) if x == 1]                       # 1, 0, 1, 1
         orientation_of_paths = [self.possible_orientations[i] for i in indices_of_paths]    # N, S, E, W
         print("orientation_of_paths", orientation_of_paths)
-        """ if departure_ornt is not None:
+        if departure_ornt is not None:
             print("entrei")
             print("departure_ornt",departure_ornt)
             return_path = self.get_antipodal(departure_ornt)
             print("return_path", return_path)
-            orientation_of_paths.remove(return_path)
+            if return_path in orientation_of_paths:
+                orientation_of_paths.remove(return_path)
             if not orientation_of_paths:
-                return return_path """
+                return return_path 
         destination_of_paths = [(self.coord_sum[i][0] + cell.coords[0], self.coord_sum[i][1] + cell.coords[1])for i in orientation_of_paths]
         for i in range(len(destination_of_paths)):
             if not self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].visited:
@@ -432,14 +418,13 @@ class MyRob(CRobLinkAngs):
         diff = destination_angle - curr_angle
         #print("diff:", diff)
         #if diff between -10 and 10 print "rotate slowly"
-        print("diff:", diff)
-        if abs(diff) ==0 :
+        print("diff:", abs(diff))
+        if abs(diff) <= 2 :
             # If the orientation is within the threshold, stop rotating
             self.driveMotors(0, 0)
             self.new_orientation = True
             self.adjusting = False
             print("new orientation")
-            return
         else:
             if self.adjusting:
                 if abs(diff) > 180:
@@ -453,6 +438,9 @@ class MyRob(CRobLinkAngs):
                         elif diff > 10:
                             self.driveMotors(-0.005, 0.005)
                             return
+                        elif diff >= 5:
+                            self.driveMotors(-0.001, 0.001)
+                            return
                     else:
                         if diff < -70:
                             self.driveMotors(0.05, -0.05)
@@ -462,6 +450,9 @@ class MyRob(CRobLinkAngs):
                             return
                         elif diff < -10:
                             self.driveMotors(0.005, -0.005)
+                            return
+                        elif diff <= -5:
+                            self.driveMotors(0.001, -0.001)
                             return
                 else:
                     if diff < 0:
@@ -474,8 +465,11 @@ class MyRob(CRobLinkAngs):
                         elif diff < -10:
                             self.driveMotors(0.005, -0.005)
                             return
+                        elif diff <= -5:
+                            self.driveMotors(0.001, -0.001)
+                            return
                     else:
-                        print(3)
+
                         if diff > 70:
                             print(4)
                             self.driveMotors(-0.05, 0.05)
@@ -488,6 +482,11 @@ class MyRob(CRobLinkAngs):
                             print(6)
                             self.driveMotors(-0.005, 0.005)
                             return
+                        elif diff >= 5:
+                            print(7)
+                            self.driveMotors(-0.001, 0.001)
+                            return
+            return
 
 
     def myGps(self,x,y):
@@ -542,16 +541,26 @@ class MyRob(CRobLinkAngs):
     def lineEval(self, possible_orientations, values):
         if values[2:5] == ['1', '1', '1']:
             self.possiblePaths.append(possible_orientations[2])
+            return
         if values[0:2] == ['1', '1']:
             self.possiblePaths.append(possible_orientations[0])
+            return
         if values[5:7] == ['1', '1']:
             self.possiblePaths.append(possible_orientations[4])
+            return
         if values[0:2] == ['1', '0']:
             self.possiblePaths.append(possible_orientations[1])
+            return
         if values[5:7] == ['0', '1']:
             self.possiblePaths.append(possible_orientations[3])
-        if values == ['0', '0', '0', '1', '1', '0', '0'] or values == ['0', '0', '1', '1', '0', '0', '0']:
+            return
+        if values == ['0', '0', '0', '1', '1', '0', '0'] or values == ['0', '0', '1', '1', '0', '0', '0'] or values == ['0', '1', '1', '1', '0', '0', '0'] or values == ['0', '0', '0', '1', '1', '1', '0']:
             self.possiblePaths.append(possible_orientations[2])
+            return
+        if self.get_compass(self.measures.compass) == 'SE':
+            if values == ['1', '0', '0', '0', '0', '0', '1'] or values == ['0', '0', '0', '0', '0', '0', '1'] or values == ['0', '0', '0', '0', '1', '0', '0'] :
+                self.possiblePaths.append('W')
+                return
 
 
 
