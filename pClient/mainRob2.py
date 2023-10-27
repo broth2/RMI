@@ -163,7 +163,7 @@ class MyRob(CRobLinkAngs):
                     #self.driveMotors(0.04,0.04)
                         self.follow_line(self.measures.lineSensor)
                     else:
-                        self.driveMotors(0.04,0.04)
+                        self.driveMotors(0.06,0.06)
 
             self.get_orientation()
             coord = (x,y)
@@ -207,7 +207,7 @@ class MyRob(CRobLinkAngs):
                         #print("Path in orientation", self.orientation)
                         self.paths[self.possible_orientations.index(self.orientation)] = 1
 
-                    self.driveMotors(0.04,-0.04)
+                    self.driveMotors(0.85,-0.85)
 
 
                 #proceed to new coordinates
@@ -317,7 +317,7 @@ class MyRob(CRobLinkAngs):
         error = center - 3
 
         if error == 0:
-            self.driveMotors(0.06, 0.06)
+            self.driveMotors(0.07, 0.07)
         else:
             if error > 1 or error < -1:
                 self.driveMotors(0.0, 0.0)
@@ -422,52 +422,51 @@ class MyRob(CRobLinkAngs):
             if self.adjusting:
                 if abs(diff) > 180:
                     if diff >= 0:
-                        if diff > 70:
-                            self.driveMotors(-0.05, 0.05)
+                        if diff > 30:
+                            self.driveMotors(-0.8, 0.8)
                             return
-                        elif diff > 30:
+                        if diff > 10:
                             self.driveMotors(-0.03, 0.03)
                             return
-                        elif diff > 10:
+                        else:
                             self.driveMotors(-0.005, 0.005)
                             return
                     else:
-                        if diff < -70:
-                            self.driveMotors(0.05, -0.05)
+                        if diff < -30:
+                            self.driveMotors(0.8, -0.8)
                             return
-                        elif diff < -30:
+                        if diff < -10:
                             self.driveMotors(0.03, -0.03)
                             return
-                        elif diff < -10:
+                        else:
                             self.driveMotors(0.005, -0.005)
                             return
                 else:
-                    if diff < 0:
-                        if diff < -70:
-                            self.driveMotors(0.05, -0.05)
+                    if diff <0:
+                        if diff < -30:
+                            self.driveMotors(0.8, -0.8)
                             return
-                        elif diff < -30:
+                        if diff < -10:
                             self.driveMotors(0.03, -0.03)
-                            return
-                        elif diff < -10:
-                            self.driveMotors(0.005, -0.005)
                             return
                         else:
                             self.driveMotors(0.005, -0.005)
                             return
                     else:
-                        if diff > 70:
-                            self.driveMotors(-0.05, 0.05)
+
+                        if diff > 30:
+                            print(4)
+                            self.driveMotors(-0.8, 0.8)
                             return
-                        elif diff > 30:
+                        if diff > 10:
+                            print(5)
                             self.driveMotors(-0.03, 0.03)
                             return
-                        elif diff > 10:
-                            self.driveMotors(-0.005, 0.005)
-                            return
                         else:
+                            print(7)
                             self.driveMotors(-0.005, 0.005)
                             return
+            return
 
 
     def myGps(self,x,y):
