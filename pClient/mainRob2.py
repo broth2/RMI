@@ -239,7 +239,9 @@ class MyRob(CRobLinkAngs):
                         if destination is None:
                             self.finished = True
                             return
+                        print("retornei isto", destination)
                         self.rotate_to_orientation(destination)
+                        print("sai do rotate to orientation")
 
                     if self.new_orientation:
                         self.new_orientation = False
@@ -495,43 +497,55 @@ class MyRob(CRobLinkAngs):
             self.orientation = "W"
         
     def create_map(self):
+        mapa = ""
         for line in self.state:
-            print("  ", end="")
             for column in line:
-                print("+", end="")
                 if column is None:
-                    print("  ", end="")
+                    mapa = mapa + "  "
                     continue
+                if column.coords == (0,0):
+                    mapa = mapa + "I"
+                else:
+                    mapa = mapa + " "
                 if column.paths[2]==1:
-                    print("--", end="")
+                    mapa = mapa + "-"
                 else:
-                    print("  ", end="")
-            print()
-            ocuppied = False
+                    mapa = mapa + " "
+            mapa = mapa[:-1]
+            if line is self.state[-1]:
+                break
+            mapa = mapa + "\n"
+            prev_cell_none = False
             for column in line:
-                if column is None:
-                    if not ocuppied:
-                        print("   ", end="")
+                if column is not None:
+                    if prev_cell_none and column.paths[5]==1:
+                        mapa = mapa + "/"
+                    if not prev_cell_none and column.paths[5]==1:
+                        mapa = mapa + "/"
+                    if prev_cell_none and column.paths[5]==0:
+                        mapa = mapa + " "
+                    if column.paths[4]==1:
+                        mapa = mapa + "|"
                     else:
-                        print(" ", end="")
-                    ocuppied = False
-                    continue
-                if not ocuppied:    # free space
-                    if column.paths[5]==1:
-                        print("/ ", end="")
+                        mapa = mapa + " "
+                    if column.paths[3]==1:
+                        mapa = mapa + "\\"
                     else:
-                        print("  ", end="")
-
-                ocuppied = False
-                if column.paths[4]==1:
-                    print("|", end="")
+                        mapa = mapa + " "
+                    
+                    prev_cell_none = False
                 else:
-                    print(" ", end="")
-                
-                if column.paths[3]==1:
-                    print("\\ ", end="")
-                    ocuppied = True
-            print()
+                    if prev_cell_none:
+                        mapa = mapa + "  "
+                    else:
+                        mapa = mapa + " "
+                    prev_cell_none = True
+
+            mapa = mapa + "\n"
+
+        with open('output.txt', 'w') as file:
+            print(mapa, file=file)
+            print(mapa)
 
 
 class Map():
