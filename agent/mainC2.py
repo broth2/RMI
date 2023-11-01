@@ -25,8 +25,8 @@ class MyRob(CRobLinkAngs):
     paths = [-1,-1,-1,-1,-1,-1,-1,-1]
     possible_orientations = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
     coord_sum = {'N': (0,2), 'NE': (2,2), 'E': (2,0), 'SE': (2,-2), 'S': (0,-2), 'SW': (-2,-2), 'W': (-2,0), 'NW': (-2,2)}
-    has_new_coords = True
-    new_x = 2
+    has_new_coords = False
+    new_x = 0
     new_y = 0
     new_orientation = False
     departure_orientation = None
@@ -35,20 +35,7 @@ class MyRob(CRobLinkAngs):
     distance = 0
     prev_distance = None
     arrived = True
-    stack = []
-    orientation_rules = {
-        'N': ['W', 'NW', 'N', 'NE', 'E'],
-        'NE': ['NW', 'N', 'NE', 'E', 'SE'],
-        'E': ['N', 'NE', 'E', 'SE', 'S'],
-        'SE': ['NE', 'E', 'SE', 'S', 'SW'],
-        'S': ['E', 'SE', 'S', 'SW', 'W'],
-        'SW': ['SE', 'S', 'SW', 'W', 'NW'],
-        'W': ['S', 'SW', 'W', 'NW', 'N'],
-        'NW': ['SW', 'W', 'NW', 'N', 'NE'],
-
-    }
-    
-    possiblePaths = []
+    finished = False
 
     def __init__(self, rob_name, rob_id, angles, host):
         # init system vars
@@ -123,7 +110,6 @@ class MyRob(CRobLinkAngs):
                 
 
     def wander(self):
-       
         center_id = 0
         left_id = 1
         right_id = 2
@@ -142,7 +128,11 @@ class MyRob(CRobLinkAngs):
             print('Rotate slowly left')
             self.driveMotors(0.0,0.1)
         else:
-            
+            if int(self.simTime)-self.measures.time<4:
+                self.create_map()
+            if self.finished: 
+                self.finish()
+                return
             # L =  5 - y
             # C = 12 + x 
             x,y =self.myGps(self.measures.x, self.measures.y)
@@ -153,13 +143,10 @@ class MyRob(CRobLinkAngs):
                 #if round(x)>=self.new_x and round(y)>=self.new_y:
                 self.distance = ((x-self.new_x)**2 + (y-self.new_y)**2)**0.5
                 print("distance", self.distance)
-                if abs(x-self.new_x) == 0 and abs(y-self.new_y) <= 0:
-                    #adjust until perfect coordinates
-                    self.driveMotors
-                    (0.03,0.03)
-                    self.appendInfo(x,y,self.measures.lineSensor)
-                    print("stopped")
+                if self.prev_distance is None: self.prev_distance = self.distance
+                if self.distance==0 or (self.distance > self.prev_distance and round(self.distance,1)<=0.1):
                     self.arrived = True
+                    #print("arrived")
                 else:
                     self.arrived = False
                 self.prev_distance = self.distance
@@ -168,19 +155,15 @@ class MyRob(CRobLinkAngs):
                     print("(",x,"-",y,")", "-","(",self.new_x,"-", self.new_y,")")
                     self.has_new_coords = False
                     self.distance = None
-                    self.appendInfo(x,y,self.measures.lineSensor)
-                    print("stack", self.stack)
                     self.prev_distance = None
                     self.get_orientation()
                     self.departure_orientation = self.orientation
-                    return
                 else:
-                    #self.driveMotors(0.05,0.05)
-                    print("A MEXER ME")
-        
-                    self.moveTo(self.new_x, self.new_y,x,y)
-                    self.appendInfo(x,y,self.measures.lineSensor)
-                    #self.follow_line(self.measures.lineSensor)
+                    if round(self.distance,1)>1:
+                    #self.driveMotors(0.04,0.04)
+                        self.follow_line(self.measures.lineSensor)
+                    else:
+                        self.driveMotors(0.06,0.06)
 
             self.get_orientation()
             coord = (x,y)
@@ -188,105 +171,91 @@ class MyRob(CRobLinkAngs):
             #print("visited orientations:", visited_orientations_coord)
             #print(coord, "-", coord == (self.new_x, self.new_y))
             #if abs(round(x,1)-self.new_x) <= 0.1 and abs(round(y,1)-self.new_y) <= 0.1:
-
+ 
             if self.arrived:
                 coord = (self.new_x, self.new_y)
-                while self.stack:
-                    elem = self.stack.pop()
-                    if not all(x == '0' for x in elem[3]):
-                            #elem[[3] must have more than 1 one
-                            print("ELEM 0", elem[0])
-                            print("ELEM 1", elem[1])
-                            print("ELEM 2", elem[2])
-                            print("ELEM 3", elem[3])
-                            #eval Elem 
-                            possible_orientations = self.possibleOrientation(elem)
-                            values = elem[3]
-                            self.lineEval(possible_orientations, values)
-                            print("possible paths", self.possiblePaths)
+                #---------ADDING ORIENTATION VISITED-----------
+                #get list of keys coord from visited_orientation
+                if coord not in self.visited_orientation.keys():
+                    self.paths = [0,0,0,0,0,0,0,0]
+                    self.visited_orientation[coord] = {'visited': set()}
+                    self.first_r = True
+                
+                self.visited_orientation[coord]['visited'].add(self.orientation)
 
-                            self.paths = self.find_indices(self.possiblePaths)
-                            print("self.paths", self.paths)
-                            self.possiblePaths.clear()
-                            self.stack = []
+                # TODO if detected more than 4 paths, rotate again (max is 4)
+                # if len(self.visited_orientation[coord]['visited'])>4:
+                #     self.paths = [0,0,0,0,0,0,0,0]
+                #     self.visited_orientation[coord] = {'visited': set()}
+                #------------------------------------------
+        
+                #check length of visited_orientation[coord]['visited'] 
+                #if length is 8, then all orientations have been visited
+                if len(self.visited_orientation[coord]['visited']) != 8:
+                    if self.first_r and len(self.visited_orientation[coord]['visited']) == 2:
+                        for elem in self.visited_orientation[coord]['visited']:
+                            if self.orientation != elem:
+                                self.visited_orientation[coord]['visited'].remove(elem)
+                                break
+                        self.first_r = False
+                    #---------CHECK IF THERE IS A PATH ------------
+                    #check if there is a path in the current orientation using the line sensor
+                    line_sensor = self.measures.lineSensor
+                    #print("LineSensor", line_sensor)    
+    
+                    if line_sensor[2:5] == ['1','1','1'] or line_sensor[2:5] == ['0','1','1'] or line_sensor[2:5] == ['1','1','0']:
+                        #print("Path in orientation", self.orientation)
+                        self.paths[self.possible_orientations.index(self.orientation)] = 1
+
+                    self.driveMotors(0.85,-0.85)
 
 
-                                                
-                for i in range(len(self.paths)):
-                    if self.paths[i] == -1:
-                        self.paths[i] = 0
-
-                x = int(round(x)/2)
-                y = int(round(y)/2)
-
-                # fill state matriz with info
-                if self.state[5-y][12+x] is None:
-                    cell = Cell()
-                    cell.visited = True
-                    cell.coords = coord
-                    cell.paths = self.paths
-                    self.state[5-y][12+x] = cell
-                    self.create_neighbours(cell)
+                #proceed to new coordinates
                 else:
-                    if not self.state[5-y][12+x].visited:
-                        self.state[5-y][12+x].visited = True
-                        self.state[5-y][12+x].paths = self.paths
-                        self.create_neighbours(self.state[5-y][12+x])
-                        # TODO something when cell has been visited?
+                    for i in range(len(self.paths)):
+                        if self.paths[i] == -1:
+                            self.paths[i] = 0
 
-                # Determine an unexplored path
-                if not self.has_new_coords:
-                    
-                    possible_paths = [i for i, path in enumerate(self.state[5-y][12+x].paths) if path == 1]
-                    print("possible paths33333:", possible_paths)
-                    # use possible path indexs to get the orientation
-                    print("possible orientations:", [self.possible_orientations[i] for i in possible_paths])
-                    destination = self.choose_path(self.departure_orientation, self.state[5-y][12+x])
-                    print("destination", destination)
-                    self.rotate_to_orientation(destination)
+                    x = int(round(x)/2)
+                    y = int(round(y)/2)
 
-                if self.new_orientation:
-                    self.new_orientation = False
-                    specific_coord_sum = self.coord_sum[self.orientation]
-                    self.new_x = round(self.state[5-y][12+x].coords[0] + specific_coord_sum[0])
-                    self.new_y = round(self.state[5-y][12+x].coords[1] + specific_coord_sum[1])
-                    self.has_new_coords = True
-                    self.shit()
-                    print("puta belha")
-                    print("new_x:", self.new_x, "new_y:", self.new_y)
+                    # fill state matriz with info
+                    if self.state[5-y][12+x] is None:
+                        cell = Cell()
+                        cell.visited = True
+                        cell.coords = coord
+                        cell.paths = self.paths
+                        self.state[5-y][12+x] = cell
+                        self.create_neighbours(cell)
+                    else:
+                        if not self.state[5-y][12+x].visited:
+                            self.state[5-y][12+x].visited = True
+                            self.state[5-y][12+x].paths = self.paths
+                            self.create_neighbours(self.state[5-y][12+x])
+                            # TODO something when cell has been visited?
 
+                    # Determine an unexplored path
+                    if not self.has_new_coords:
+                        possible_paths = [i for i, path in enumerate(self.state[5-y][12+x].paths) if path == 1]
+                        # use possible path indexs to get the orientation
+                        #print("possible orientations:", [self.possible_orientations[i] for i in possible_paths])
+                        destination = self.choose_path(self.departure_orientation, self.state[5-y][12+x])
+                        if destination is None:
+                            self.finished = True
+                            return
+                        self.rotate_to_orientation(destination)
 
-    def find_indices(self,possible_paths):
-        to_index = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
-        indices = [0] * len(to_index)
-        
-        for path in possible_paths:
-            if path in to_index:
-                index = to_index.index(path)
-                indices[index] = 1
+                    if self.new_orientation:
+                        self.new_orientation = False
+                        specific_coord_sum = self.coord_sum[self.orientation]
+                        self.new_x = round(self.state[5-y][12+x].coords[0] + specific_coord_sum[0])
+                        self.new_y = round(self.state[5-y][12+x].coords[1] + specific_coord_sum[1])
+                        self.has_new_coords = True
+                        #self.shit()
+                        #print("puta belha")
+                        print("new_x:", self.new_x, "new_y:", self.new_y, "\n")
+                        self.create_map()
 
-        
-        return indices
-
-
-    def moveTo(self,target_x, target_y,x,y):
-        print("moving to", target_x, target_y)
-        print("current position", x, y)
-        delta = atan2(target_y - y, target_x - x)
-        print ("\ndelta\n", delta)
-        alfa = self.measures.compass
-        #convert alfa to radians    
-        alfa = alfa * pi/180
-        beta = delta - alfa
-        self.driveMotors(0.07 - 0.03 * beta, 0.07 + 0.03 * beta)
-
-    def possibleOrientation(self, elem):
-
-        curr_orientation = self.get_compass(elem[2])
-        print("curr_orientation", curr_orientation)
-        possible_orientations = self.orientation_rules[curr_orientation]
-        print("possible orientations", possible_orientations)
-        return possible_orientations
 
     def shit(self):
         for line in self.state:
@@ -296,20 +265,7 @@ class MyRob(CRobLinkAngs):
                         else:
                                 print(1, end=" ")
                 print()
-    
-    def sensorPosition(self, x, y):
-        sx = x + 0.438 * cos(self.measures.compass)
-        sy = y + 0.438 * sin(self.measures.compass)
-        return sx, sy
 
-    def appendInfo(self, x, y, lineSensor):
-        x,y = self.sensorPosition(x,y)
-        # round to whole even number to avoid floating point errors
-
-        print("SENSOR POSISION", x, y)
-        #x = int(x) if ((int(x) % 2) == 0) else int(x) + 1
-        #y = int(y) if ((int(y) % 2) == 0) else int(y) + 1
-        self.stack.append((x, y,self.measures.compass,lineSensor))
 
     def get_antipodal(self, coord):
         # transforms a cardinal point like "N" or "SW" to its antipodal 180 degrees away
@@ -319,7 +275,7 @@ class MyRob(CRobLinkAngs):
     
     def create_neighbours(self, cell):
         # fills state with information on surrounding cells
-        print("creating neighbours for", cell.coords)
+        # print("creating neighbours for", cell.coords)
         indices_of_paths = [i for i, x in enumerate(cell.paths) if x == 1]
         orientation_of_paths = [self.possible_orientations[i] for i in indices_of_paths]
         destination_of_paths = [(self.coord_sum[i][0] + cell.coords[0], self.coord_sum[i][1] + cell.coords[1])for i in orientation_of_paths]
@@ -341,29 +297,53 @@ class MyRob(CRobLinkAngs):
                 if self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].coords != destination_of_paths[i]:
                     print("info error, entry is", self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].coords, "but expected it to be", destination_of_paths[i])
 
+    def follow_line(self, arr):
+        first_index = -1
+        last_index = -1
+        for i in range(len(arr)):
+            if arr[i] == '1':
+                first_index = i
+                break
+        for i in range(len(arr)-1, -1, -1):
+            if arr[i] == '1':
+                last_index = i
+                break
+
+        center = (first_index + last_index) / 2
+
+        if first_index==-1 and last_index==-1:
+            print("oh nao oh deus")
+
+        error = center - 3
+
+        if error == 0:
+            self.driveMotors(0.07, 0.07)
+        else:
+            if error > 1 or error < -1:
+                self.driveMotors(0.0, 0.0)
+                self.driveMotors(0.0, 0.0)
+            correction = (0.04 * error)
+            left_motor_speed = 0.02 + correction
+            right_motor_speed = 0.02 - correction
+            self.driveMotors(left_motor_speed, right_motor_speed)
+        
+        return
 
     def choose_path(self, departure_ornt, cell):
         indices_of_paths = [i for i, x in enumerate(cell.paths) if x == 1]                       # 1, 0, 1, 1
         orientation_of_paths = [self.possible_orientations[i] for i in indices_of_paths]    # N, S, E, W
-        print("orientation_of_paths", orientation_of_paths)
         if departure_ornt is not None:
-            print("entrei")
-            print("departure_ornt",departure_ornt)
             return_path = self.get_antipodal(departure_ornt)
-            print("return_path", return_path)
-            if return_path in orientation_of_paths:
-                orientation_of_paths.remove(return_path)
+            orientation_of_paths.remove(return_path)
             if not orientation_of_paths:
-                return return_path 
+                return return_path
         destination_of_paths = [(self.coord_sum[i][0] + cell.coords[0], self.coord_sum[i][1] + cell.coords[1])for i in orientation_of_paths]
         for i in range(len(destination_of_paths)):
             if not self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].visited:
                 if -1 not in self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].paths:
                     continue
                 return orientation_of_paths[i]
-        # TODO percorrer a matriz state toda, encontrar o ponto nao visitado mais proximo e retorna-lo, ja que nao é nenhum dos 8 envolventes
-        self.closest_cell(cell)     # TODO this should return an orientation
-        return #final proper print state
+        return self.closest_cell(cell)
 
     
     def closest_cell(self, curr_cell):
@@ -374,18 +354,24 @@ class MyRob(CRobLinkAngs):
         while queue:
             actual, moves, parents = queue.popleft()
             if not actual.visited:
-                return parents[0]   #should be an orientation
+                print("return 0", actual.coords)
+                return self.cell_to_orientation(curr_cell,parents[0])
             
             neighbours = self.get_neighbours(actual)
-
             for neighbour in neighbours:
                 if not neighbour.visited:
-                    return parents[0]   #should be an orientation
+                    print("return 1", neighbour.coords)
+                    return self.cell_to_orientation(curr_cell,parents[0])
                 if neighbour not in visited_cells:
-                    parents.append[neighbour]
-                    queue.append((neighbour, moves+1, parents))
+                    new_parents = []
+                    for p in parents:
+                        new_parents.append(p)
+                    new_parents.append(neighbour)
+                    new_moves = moves
+                    queue.append((neighbour, new_moves+1, new_parents))
                     visited_cells.add(neighbour)
-        return -1 # no more unvisited nodes
+        self.create_map()
+        return # no more unvisited nodes
 
     def get_neighbours(self, cell):
         neighbors = []
@@ -397,6 +383,14 @@ class MyRob(CRobLinkAngs):
             neighbors.append(self.state[5-int(new_y/2)][12+int(new_x/2)])
 
         return neighbors
+    
+    def cell_to_orientation(self, start, end):
+        indices_of_paths = [i for i, x in enumerate(start.paths) if x == 1]
+        orientation_of_paths = [self.possible_orientations[i] for i in indices_of_paths]
+        destination_of_paths = [(self.coord_sum[i][0] + start.coords[0], self.coord_sum[i][1] + start.coords[1])for i in orientation_of_paths]
+        for i, dest in enumerate(destination_of_paths):
+            if dest==end.coords:
+                return orientation_of_paths[i]
 
     def rotate_to_orientation(self, destination):
         self.adjusting = True
@@ -418,73 +412,59 @@ class MyRob(CRobLinkAngs):
         diff = destination_angle - curr_angle
         #print("diff:", diff)
         #if diff between -10 and 10 print "rotate slowly"
-        print("diff:", abs(diff))
-        if abs(diff) <= 2 :
+        if abs(diff) == 0 :
             # If the orientation is within the threshold, stop rotating
             self.driveMotors(0, 0)
             self.new_orientation = True
             self.adjusting = False
-            print("new orientation")
+            return
         else:
             if self.adjusting:
                 if abs(diff) > 180:
                     if diff >= 0:
-                        if diff > 70:
-                            self.driveMotors(-0.05, 0.05)
+                        if diff > 30:
+                            self.driveMotors(-0.8, 0.8)
                             return
-                        elif diff > 30:
+                        if diff > 10:
                             self.driveMotors(-0.03, 0.03)
                             return
-                        elif diff > 10:
+                        else:
                             self.driveMotors(-0.005, 0.005)
                             return
-                        elif diff >= 5:
-                            self.driveMotors(-0.001, 0.001)
-                            return
                     else:
-                        if diff < -70:
-                            self.driveMotors(0.05, -0.05)
+                        if diff < -30:
+                            self.driveMotors(0.8, -0.8)
                             return
-                        elif diff < -30:
+                        if diff < -10:
                             self.driveMotors(0.03, -0.03)
                             return
-                        elif diff < -10:
+                        else:
                             self.driveMotors(0.005, -0.005)
-                            return
-                        elif diff <= -5:
-                            self.driveMotors(0.001, -0.001)
                             return
                 else:
-                    if diff < 0:
-                        if diff < -70:
-                            self.driveMotors(0.05, -0.05)
+                    if diff <0:
+                        if diff < -30:
+                            self.driveMotors(0.8, -0.8)
                             return
-                        elif diff < -30:
+                        if diff < -10:
                             self.driveMotors(0.03, -0.03)
                             return
-                        elif diff < -10:
+                        else:
                             self.driveMotors(0.005, -0.005)
-                            return
-                        elif diff <= -5:
-                            self.driveMotors(0.001, -0.001)
                             return
                     else:
 
-                        if diff > 70:
+                        if diff > 30:
                             print(4)
-                            self.driveMotors(-0.05, 0.05)
+                            self.driveMotors(-0.8, 0.8)
                             return
-                        elif diff > 30:
+                        if diff > 10:
                             print(5)
                             self.driveMotors(-0.03, 0.03)
                             return
-                        elif diff > 10:
-                            print(6)
-                            self.driveMotors(-0.005, 0.005)
-                            return
-                        elif diff >= 5:
+                        else:
                             print(7)
-                            self.driveMotors(-0.001, 0.001)
+                            self.driveMotors(-0.005, 0.005)
                             return
             return
 
@@ -516,52 +496,57 @@ class MyRob(CRobLinkAngs):
             self.orientation = "S"
         else:
             self.orientation = "W"
-    
-    def get_compass(self, compass):
-
-        #print("Compass:", compass)
-
-        if -22.5 <= compass <= 22.5:
-            return "E"
-        elif 22.5 < compass <= 67.5:
-            return "NE"
-        elif 67.5 < compass <= 112.5:
-            return "N"
-        elif 112.5 < compass <= 157.5:
-            return "NW"
-        elif -67.5 <= compass < -22.5:
-            return "SE"
-        elif -157.5 <= compass < -112.5:
-            return "SW"
-        elif -112.5 < compass <= -67.5:
-            return "S"
-        else:
-            return "W"
         
-    def lineEval(self, possible_orientations, values):
-        if values[2:5] == ['1', '1', '1']:
-            self.possiblePaths.append(possible_orientations[2])
-            return
-        if values[0:2] == ['1', '1']:
-            self.possiblePaths.append(possible_orientations[0])
-            return
-        if values[5:7] == ['1', '1']:
-            self.possiblePaths.append(possible_orientations[4])
-            return
-        if values[0:2] == ['1', '0']:
-            self.possiblePaths.append(possible_orientations[1])
-            return
-        if values[5:7] == ['0', '1']:
-            self.possiblePaths.append(possible_orientations[3])
-            return
-        if values == ['0', '0', '0', '1', '1', '0', '0'] or values == ['0', '0', '1', '1', '0', '0', '0'] or values == ['0', '1', '1', '1', '0', '0', '0'] or values == ['0', '0', '0', '1', '1', '1', '0']:
-            self.possiblePaths.append(possible_orientations[2])
-            return
-        if self.get_compass(self.measures.compass) == 'SE':
-            if values == ['1', '0', '0', '0', '0', '0', '1'] or values == ['0', '0', '0', '0', '0', '0', '1'] or values == ['0', '0', '0', '0', '1', '0', '0'] :
-                self.possiblePaths.append('W')
-                return
+    def create_map(self):
+        mapa = ""
+        for line in self.state:
+            for column in line:
+                if column is None:
+                    mapa = mapa + "  "
+                    continue
+                if column.coords == (0,0):
+                    mapa = mapa + "I"
+                else:
+                    mapa = mapa + " "
+                if column.paths[2]==1:
+                    mapa = mapa + "-"
+                else:
+                    mapa = mapa + " "
+            mapa = mapa[:-1]
+            if line is self.state[-1]:
+                break
+            mapa = mapa + "\n"
+            prev_cell_none = False
+            for column in line:
+                if column is not None:
+                    if prev_cell_none and column.paths[5]==1:
+                        mapa = mapa + "/"
+                    if not prev_cell_none and column.paths[5]==1:
+                        mapa = mapa + "/"
+                    if prev_cell_none and column.paths[5]==0:
+                        mapa = mapa + " "
+                    if column.paths[4]==1:
+                        mapa = mapa + "|"
+                    else:
+                        mapa = mapa + " "
+                    if column.paths[3]==1:
+                        mapa = mapa + "\\"
+                    else:
+                        mapa = mapa + " "
+                    
+                    prev_cell_none = False
+                else:
+                    if prev_cell_none:
+                        mapa = mapa + "  "
+                    else:
+                        mapa = mapa + " "
+                    prev_cell_none = True
 
+            mapa = mapa + "\n"
+
+        with open('output.txt', 'w') as file:
+            print(mapa, file=file)
+            #print(mapa)
 
 
 class Map():
