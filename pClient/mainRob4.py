@@ -3,11 +3,18 @@ import sys
 from croblink import *
 from math import *
 import xml.etree.ElementTree as ET
+import math
 
 CELLROWS=7
 CELLCOLS=14
 
 class MyRob(CRobLinkAngs):
+    out_l = 0
+    out_r = 0
+    rot_predict = 0        # TODO: must be init as None and averager or smth after first readings
+    x_predict = 0
+    y_predict = 0
+
     def __init__(self, rob_name, rob_id, angles, host):
         CRobLinkAngs.__init__(self, rob_name, rob_id, angles, host)
 
@@ -86,15 +93,56 @@ class MyRob(CRobLinkAngs):
 
     def go(self):
         print('Go')
-        self.driveMotorsExt(0.1,0.1)
+        self.follow_line(self.measures.lineSensor)
 
     
     def driveMotorsExt(self,lpow,rpow):
         #apply self.drive motors
         self.driveMotors(lpow,rpow)
+        
         #apply movement model
         print("applying movement model")
+        if lpow>0.15:
+            lpow = 0.15
+        if rpow>0.15:
+            rpow = 0.15
 
+        self.out_l = (lpow + self.out_l)/2
+        self.out_r = (rpow + self.out_r)/2
+
+        lin = (self.out_l + self.out_r) / 2
+        self.x_predict = self.x_predict + lin*math.cos(self.rot_predict)
+        self.y_predict = self.y_predict + lin*math.sin(self.rot_predict)
+        self.rot_predict = self.rot_predict + self.out_r - self.out_l
+
+        print(round(self.x_predict,2), round(self.y_predict,2), round(math.degrees(self.rot_predict),1), self.measures.compass)
+
+    def follow_line(self, arr):
+        first_index = -1
+        last_index = -1
+        for i in range(len(arr)):
+            if arr[i] == '1':
+                first_index = i
+                break
+        for i in range(len(arr)-1, -1, -1):
+            if arr[i] == '1':
+                last_index = i
+                break
+
+        center = (first_index + last_index) / 2
+
+        if first_index==-1 and last_index==-1:
+            print("oh nao oh deus")
+
+        error = center - 3
+
+        if error == 0:
+            self.driveMotorsExt(0.07, 0.07)
+        else:
+            correction = (0.04 * error)
+            left_motor_speed = 0.02 + correction
+            right_motor_speed = 0.02 - correction
+            self.driveMotorsExt(left_motor_speed, right_motor_speed)
         
 
 class Map():
