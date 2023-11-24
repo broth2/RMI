@@ -92,8 +92,8 @@ class MyRob(CRobLinkAngs):
             self.go()
 
     def go(self):
-        print('Go')
         self.follow_line(self.measures.lineSensor)
+        self.detect_intersection(self.measures.lineSensor)
 
     
     def driveMotorsExt(self,lpow,rpow):
@@ -101,7 +101,7 @@ class MyRob(CRobLinkAngs):
         self.driveMotors(lpow,rpow)
         
         #apply movement model
-        print("applying movement model")
+        # print("applying movement model")
         if lpow>0.15:
             lpow = 0.15
         if rpow>0.15:
@@ -115,7 +115,7 @@ class MyRob(CRobLinkAngs):
         self.y_predict = self.y_predict + lin*math.sin(self.rot_predict)
         self.rot_predict = self.rot_predict + self.out_r - self.out_l
 
-        print(round(self.x_predict,2), round(self.y_predict,2), round(math.degrees(self.rot_predict),1), self.measures.compass)
+        print("x:",round(self.x_predict,2)," y:", round(self.y_predict,2)," t:", round(math.degrees(self.rot_predict),1), self.measures.compass)
 
     def follow_line(self, arr):
         first_index = -1
@@ -143,7 +143,13 @@ class MyRob(CRobLinkAngs):
             left_motor_speed = 0.02 + correction
             right_motor_speed = 0.02 - correction
             self.driveMotorsExt(left_motor_speed, right_motor_speed)
-        
+
+
+    def detect_intersection(self, lineSensor):
+        if '1' in lineSensor[:2]+lineSensor[-2:]:
+            print(f"found intersection at ({round(self.x_predict,2)}, {round(self.y_predict,2)})")
+        elif '1' not in lineSensor:
+            print(f"found intersection at ({round(self.x_predict,2)}, {round(self.y_predict,2)})")
 
 class Map():
     def __init__(self, filename):
