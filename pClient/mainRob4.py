@@ -14,6 +14,12 @@ class MyRob(CRobLinkAngs):
     rot_predict = 0        # TODO: must be init as None and averager or smth after first readings
     x_predict = 0
     y_predict = 0
+    intersect_directions = set()                #set that will hold for which path there is an intersection
+    history = [''] * 20
+    m = 0
+    intersect = False
+    stop = False
+
 
     def __init__(self, rob_name, rob_id, angles, host):
         CRobLinkAngs.__init__(self, rob_name, rob_id, angles, host)
@@ -92,8 +98,32 @@ class MyRob(CRobLinkAngs):
             self.go()
 
     def go(self):
-        self.follow_line(self.measures.lineSensor)
-        self.detect_intersection(self.measures.lineSensor)
+        #self.follow_line(self.measures.lineSensor)
+ 
+
+
+        was_in_intersect = self.intersect 
+        self.intersect = self.detect_intersection(self.measures.lineSensor)
+        
+        if self.intersect:
+            self.driveMotorsExt(0.04,0.04)
+            self.append_history(self.measures.lineSensor)
+        else:
+            self.follow_line(self.measures.lineSensor)
+            #self.driveMotorsExt(0.07,0.07)
+
+        if was_in_intersect and not self.intersect:
+            print(f"END INTERSECTION")
+            #analise    
+            self.analyze()
+            #clear self.history
+            self.reset_history()
+            self.intersect_directions.clear()
+        
+
+
+        print("CYCLE END \n\n")
+
 
     
     def driveMotorsExt(self,lpow,rpow):
@@ -146,11 +176,260 @@ class MyRob(CRobLinkAngs):
 
 
     def detect_intersection(self, lineSensor):
-        if '1' in lineSensor[:2]+lineSensor[-2:]:
-            print(f"found intersection at ({round(self.x_predict,2)}, {round(self.y_predict,2)})")
-        elif '1' not in lineSensor:
-            print(f"found intersection at ({round(self.x_predict,2)}, {round(self.y_predict,2)})")
 
+
+
+        if '1' in lineSensor[0] or '1' in lineSensor[1] or '1' in lineSensor[5] or '1' in lineSensor[6]:
+            #print(f"found intersection at ({round(self.x_predict,2)}, {round(self.y_predict,2)})")
+            return True
+
+        else:
+            return False
+
+
+    def analyze(self):
+        print("\n ANALYZE \n")
+        last_data_index =  0
+
+
+        for index,entry in enumerate(self.history):
+            if self.history[index] != '':
+                  last_data_index = index  
+
+
+        print(f"Last data index {last_data_index}\n")
+
+        #get 3 first entries and last 2
+        first_3_entries = self.history[0:4]
+        last_3_entries = self.history[last_data_index-2:last_data_index+1]
+        entry_after_last = self.measures.lineSensor
+
+        print(f"entry after last {entry_after_last}\n")
+
+        self.eval(first_3_entries,last_3_entries,entry_after_last)
+
+
+    def eval(self, first_entries, last_entries, entry_after_last):
+
+        detected_out_first_entry,detected_inside_first_entry,detected_middle_first_entry = False,False,False
+        detected_out_second_entry,detected_inside_second_entry,detected_middle_second_entry = False,False,False
+
+        detected_out_first_exit,detected_inside_first_exit,detected_middle_first_exit = False,False,False
+        detected_out_second_exit,detected_inside_second_exit,detected_middle_second_exit = False,False,False 
+
+        first_entry = first_entries[0]
+        second_entry = first_entries[1]
+        third_entry = first_entries[2]
+
+        if first_entry == second_entry:
+            second_entry = third_entry
+            
+
+        exit_first = last_entries[-2]
+        exit_second = last_entries[-1]
+
+        if exit_first == exit_second:
+            exit_first = last_entries[-3]
+
+        print(f"FIRST ENTRY: {first_entry}")
+        print(f"SECOND ENTRY: {second_entry}")
+
+        print(f"EXIT FIRST: {exit_first}")
+        print(f"EXIT SECOND: {exit_second}")
+        #check if first entry has 1's in the first or last position
+
+        detected_out_first_entry, detected_inside_first_entry, detected_middle_first_entry = self.where_detected(first_entry)
+        detected_out_second_entry, detected_inside_second_entry, detected_middle_second_entry = self.where_detected(second_entry)
+
+        detected_out_first_exit, detected_inside_first_exit, detected_middle_first_exit = self.where_detected(exit_first)
+        detected_out_second_exit, detected_inside_second_exit, detected_middle_second_exit = self.where_detected(exit_second)
+
+        #self.print_function(detected_out_first_entry,detected_inside_first_entry,detected_middle_first_entry,detected_out_second_entry,detected_inside_second_entry,detected_middle_second_entry,True)
+        #self.print_function(detected_out_first_exit,detected_inside_first_exit,detected_middle_first_exit,detected_out_second_exit,detected_inside_second_exit,detected_middle_second_exit,False)
+
+        info_entry = [detected_out_first_entry,detected_inside_first_entry,detected_middle_first_entry,detected_out_second_entry,detected_inside_second_entry,detected_middle_second_entry]
+        info_exit = [detected_out_first_exit,detected_inside_first_exit,detected_middle_first_exit,detected_out_second_exit,detected_inside_second_exit,detected_middle_second_exit]
+
+        self.intersect_directions.add(self.handle_first(info_entry,entry_after_last))
+        self.intersect_directions.add(self.handle_exit(info_exit))
+        
+        
+        if entry_after_last[2:5] == [ '1', '1','1'] or entry_after_last[2:5] == ['0', '1', '1'] or entry_after_last[2:5] == ['1','1','0']:
+            self.intersect_directions.add(self.get_facing_direction())
+
+
+        print(f"INTERSECT DIRECTIONS: {self.intersect_directions}")
+
+    
+    def print_function(self, detected_out_first, detected_inside_first, detected_middle_first, detected_out_second, detected_inside_second, detected_middle_second,entry):
+        if entry:
+            print("\nENTRY\n")
+        else:
+            print("\nEXIT\n")
+
+        print(f"DETECTED OUT FIRST: {detected_out_first}")
+        print(f"DETECTED INSIDE FIRST: {detected_inside_first}")
+        print(f"DETECTED MIDDLE FIRST: {detected_middle_first}\n")
+    
+        print(f"DETECTED OUT SECOND: {detected_out_second}")
+        print(f"DETECTED INSIDE SECOND: {detected_inside_second}")
+        print(f"DETECTED MIDDLE SECOND: {detected_middle_second}\n ")
+            
+
+    
+    def handle_first(self, arr,entry_after_last):
+        detected_out_first = arr[0]
+        detected_inside_first = arr[1]
+        detected_out_second = arr[3]
+        detected_inside_second = arr[4]
+
+        directions = set()
+    
+        
+        if detected_out_first and not detected_inside_first and detected_inside_second and detected_out_second:
+            direction = detected_out_first[1]
+            if direction == 'left':
+                directions.add(self.get_facing_direction(135))
+            elif direction == 'right':
+                directions.add(self.get_facing_direction(-135))
+            elif direction == 'both':
+                directions.add(self.get_facing_direction(-135))
+                directions.add(self.get_facing_direction(135))
+
+
+        if (not detected_inside_first and not detected_out_first and detected_inside_second) and detected_out_second or (detected_inside_first and detected_out_first and detected_inside_second and detected_out_second):
+            direction = detected_out_second[1]
+            if direction == 'left':
+                directions.add(self.get_facing_direction(90))
+            elif direction == 'right':
+                directions.add(self.get_facing_direction(-90))
+            elif direction == 'both':
+                directions.add(self.get_facing_direction(-90))
+                directions.add(self.get_facing_direction(90))
+
+
+        return frozenset(directions)
+    
+    
+    def handle_exit(self, arr):
+        detected_out_first = arr[0]
+        detected_inside_first = arr[1]
+        detected_out_second = arr[3]
+        detected_inside_second = arr[4]
+
+
+        directions = set()
+
+        if detected_out_second and not detected_inside_second:
+            direction = detected_out_second[1]
+            print(f"detected out second {detected_out_second}")
+            if direction == 'left':
+                directions.add(self.get_facing_direction(45))
+            elif direction == 'right':
+                directions.add(self.get_facing_direction(-45))
+            elif direction == 'both':
+                directions.add(self.get_facing_direction(-45))
+                directions.add(self.get_facing_direction(45))
+
+        if (not detected_inside_first and not detected_out_first and detected_inside_second) and detected_out_second or (detected_inside_first and detected_out_first and detected_inside_second and detected_out_second):
+            direction = detected_out_first[1]
+            if direction == 'left':
+                directions.add(self.get_facing_direction(90))
+            elif direction == 'right':
+                directions.add(self.get_facing_direction(-90))
+            elif direction == 'both':
+                directions.add(self.get_facing_direction(-90))
+                directions.add(self.get_facing_direction(90))
+
+
+
+        return frozenset(directions)
+    
+
+    def     where_detected(self, arr):
+        detected_out = False
+        detected_inside = False
+        detected_middle = False
+
+        if arr[0] == '1' or arr[6] == '1':
+            detected_out = True
+            if arr[0] == '1':
+                detected_out = (True, 'left')
+            if arr[6] == '1':
+                detected_out = (True, 'right')
+            if arr[0] == '1' and arr[6] == '1':
+                detected_out = (True, 'both')
+
+        if arr[1] == '1' or arr[5] == '1':
+            detected_inside = True
+            if arr[1] == '1':
+                detected_inside = (True, 'left')
+            if arr[5] == '1':
+                detected_inside = (True, 'right')
+            if arr[1] == '1' and arr[5] == '1':
+                detected_inside = (True, 'both')
+        if all(element == '1' for element in arr[2:5]):
+            detected_middle = True
+
+        return detected_out, detected_inside, detected_middle   
+
+
+    def get_facing_direction(self,sum = 0):
+
+        compass = self.measures.compass + sum 
+
+        if -22.5 <= compass <= 22.5:
+            return "E"
+        elif 22.5 < compass <= 67.5:
+            return "NE"
+        elif 67.5 < compass <= 112.5:
+            return "N"
+        elif 112.5 < compass <= 157.5:
+            return "NW"
+        elif -67.5 <= compass < -22.5:
+            return "SE"
+        elif -157.5 <= compass < -112.5:
+            return "SW"
+        elif -112.5 < compass <= -67.5:
+            return "S"
+        else:
+            return "W"
+
+    
+
+    def append_history(self, arr):
+        print(f" M : {self.m}")
+        self.history[self.m] = arr
+        self.m += 1
+
+        if self.m == 20:
+            self.m = 0
+
+
+    def handle_intersections(self):
+        
+
+        for i in range(len(self.history)):
+            tuple_values = self.history[i]
+            #get the index of the first entry with corner = True
+            if len(tuple_values) >= 2 and tuple_values[1] is True:
+                # CHECK UNTIL THE END of history if there is any tuple_values[1] == false
+                print(f"I: {i} \n")
+                for j in range(1, len(self.history)):
+                    next_index = (i + j) % len(self.history)
+                    next_entry = self.history[next_index]
+                    if len(next_entry) >= 2 and next_entry[1] is False:
+                        return True
+                    pass
+                return False
+
+
+    def reset_history(self):
+        self.history = ['']  * 20
+        self.m = 0
+
+
+    
 class Map():
     def __init__(self, filename):
         tree = ET.parse(filename)
