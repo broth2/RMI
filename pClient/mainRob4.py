@@ -14,7 +14,7 @@ class MyRob(CRobLinkAngs):
     rot_predict = 0        # TODO: must be init as None and averager or smth after first readings
     x_predict = 0
     y_predict = 0
-    intersect_directions = set()                #set that will hold for which path there is an intersection
+    intersect_directions = []                #set that will hold for which path there is an intersection
     history = [''] * 20
     m = 0
     intersect = False
@@ -106,7 +106,7 @@ class MyRob(CRobLinkAngs):
         if self.intersect:
             if self.first_time_intersect:
                 self.first_time_intersect = False
-                self.intersect_directions.add(self.get_antipodal(self.get_facing_direction()))
+                self.intersect_directions.append(self.get_antipodal(self.get_facing_direction()))
             self.driveMotorsExt(0.04,0.04)
             self.append_history(self.measures.lineSensor)
         else:
@@ -257,14 +257,18 @@ class MyRob(CRobLinkAngs):
         info_entry = [detected_out_first_entry,detected_inside_first_entry,detected_middle_first_entry,detected_out_second_entry,detected_inside_second_entry,detected_middle_second_entry]
         info_exit = [detected_out_first_exit,detected_inside_first_exit,detected_middle_first_exit,detected_out_second_exit,detected_inside_second_exit,detected_middle_second_exit]
 
-        self.intersect_directions.add(self.handle_first(info_entry,entry_after_last))
-        self.intersect_directions.add(self.handle_exit(info_exit))
+        self.intersect_directions.extend(self.handle_first(info_entry,entry_after_last))
+        self.intersect_directions.extend(self.handle_exit(info_exit))
         
         
         if entry_after_last[2:5] == [ '1', '1','1'] or entry_after_last[2:5] == ['0', '1', '1'] or entry_after_last[2:5] == ['1','1','0']:
-            self.intersect_directions.add(self.get_facing_direction())
+            if self.get_facing_direction() not in self.intersect_directions:
+                self.intersect_directions.append(self.get_facing_direction())
 
-        print(f"INTERSECT DIRECTIONS: {[list(x) for x in self.intersect_directions if x != set()]}")
+
+        self.intersect_directions = [x for x in self.intersect_directions if x != []]
+        
+        print(f"INTERSECT DIRECTIONS: {self.intersect_directions}")
 
     
     def print_function(self, detected_out_first, detected_inside_first, detected_middle_first, detected_out_second, detected_inside_second, detected_middle_second,entry):
@@ -289,32 +293,38 @@ class MyRob(CRobLinkAngs):
         detected_out_second = arr[3]
         detected_inside_second = arr[4]
 
-        directions = set()
+        directions = []
     
         
         if detected_out_first and not detected_inside_first and detected_inside_second and detected_out_second:
             direction = detected_out_first[1]
             if direction == 'left':
-                directions.add(self.get_facing_direction(135))
+                if self.get_facing_direction(135) not in self.intersect_directions:
+                    directions.append(self.get_facing_direction(135))
             elif direction == 'right':
-                directions.add(self.get_facing_direction(-135))
+                if self.get_facing_direction(-135) not in self.intersect_directions:
+                    directions.append(self.get_facing_direction(-135))
             elif direction == 'both':
-                directions.add(self.get_facing_direction(-135))
-                directions.add(self.get_facing_direction(135))
+                if self.get_facing_direction(-135) not in self.intersect_directions or self.get_facing_direction(135) not in self.intersect_directions:
+                    directions.append(self.get_facing_direction(-135))
+                    directions.append(self.get_facing_direction(135))
 
 
         if (not detected_inside_first and not detected_out_first and detected_inside_second) and detected_out_second or (detected_inside_first and detected_out_first and detected_inside_second and detected_out_second):
             direction = detected_out_second[1]
             if direction == 'left':
-                directions.add(self.get_facing_direction(90))
+                if self.get_facing_direction(90) not in self.intersect_directions:
+                    directions.append(self.get_facing_direction(90))
             elif direction == 'right':
-                directions.add(self.get_facing_direction(-90))
+                if self.get_facing_direction(-90) not in self.intersect_directions:
+                    directions.append(self.get_facing_direction(-90))
             elif direction == 'both':
-                directions.add(self.get_facing_direction(-90))
-                directions.add(self.get_facing_direction(90))
+                if self.get_facing_direction(-90) not in self.intersect_directions or self.get_facing_direction(90) not in self.intersect_directions:
+                    directions.append(self.get_facing_direction(-90))
+                    directions.append(self.get_facing_direction(90))
 
 
-        return frozenset(directions)
+        return directions
     
     
     def handle_exit(self, arr):
@@ -324,32 +334,38 @@ class MyRob(CRobLinkAngs):
         detected_inside_second = arr[4]
 
 
-        directions = set()
+        directions = []
 
         if detected_out_second and not detected_inside_second:
             direction = detected_out_second[1]
             print(f"detected out second {detected_out_second}")
             if direction == 'left':
-                directions.add(self.get_facing_direction(45))
+                if self.get_facing_direction(45) not in self.intersect_directions:
+                    directions.append(self.get_facing_direction(45))
             elif direction == 'right':
-                directions.add(self.get_facing_direction(-45))
+                if self.get_facing_direction(-45) not in self.intersect_directions:
+                    directions.append(self.get_facing_direction(-45))
             elif direction == 'both':
-                directions.add(self.get_facing_direction(-45))
-                directions.add(self.get_facing_direction(45))
+                if self.get_facing_direction(-45) not in self.intersect_directions or self.get_facing_direction(45) not in self.intersect_directions:
+                    directions.append(self.get_facing_direction(-45))
+                    directions.append(self.get_facing_direction(45))
 
         if (not detected_inside_first and not detected_out_first and detected_inside_second) and detected_out_second or (detected_inside_first and detected_out_first and detected_inside_second and detected_out_second):
             direction = detected_out_first[1]
             if direction == 'left':
-                directions.add(self.get_facing_direction(90))
+                if self.get_facing_direction(90) not in self.intersect_directions:
+                    directions.append(self.get_facing_direction(90))
             elif direction == 'right':
-                directions.add(self.get_facing_direction(-90))
+                if self.get_facing_direction(-90) not in self.intersect_directions:
+                    directions.append(self.get_facing_direction(-90))
             elif direction == 'both':
-                directions.add(self.get_facing_direction(-90))
-                directions.add(self.get_facing_direction(90))
+                if self.get_facing_direction(-90) not in self.intersect_directions or self.get_facing_direction(90) not in self.intersect_directions:
+                    directions.append(self.get_facing_direction(-90))
+                    directions.append(self.get_facing_direction(90))
 
 
 
-        return frozenset(directions)
+        return directions
     
 
     def     where_detected(self, arr):
