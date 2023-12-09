@@ -19,6 +19,8 @@ class MyRob(CRobLinkAngs):
     m = 0
     intersect = False
     stop = False
+    possible_orientations = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+    first_time_intersect = True
 
 
     def __init__(self, rob_name, rob_id, angles, host):
@@ -98,17 +100,17 @@ class MyRob(CRobLinkAngs):
             self.go()
 
     def go(self):
-        #self.follow_line(self.measures.lineSensor)
- 
-
-
         was_in_intersect = self.intersect 
         self.intersect = self.detect_intersection(self.measures.lineSensor)
         
         if self.intersect:
+            if self.first_time_intersect:
+                self.first_time_intersect = False
+                self.intersect_directions.add(self.get_antipodal(self.get_facing_direction()))
             self.driveMotorsExt(0.04,0.04)
             self.append_history(self.measures.lineSensor)
         else:
+            self.first_time_intersect = True
             self.follow_line(self.measures.lineSensor)
             #self.driveMotorsExt(0.07,0.07)
 
@@ -124,6 +126,11 @@ class MyRob(CRobLinkAngs):
 
         print("CYCLE END \n\n")
 
+
+    def get_antipodal(self, coord):
+        # transforms a cardinal point like "N" or "SW" to its antipodal 180 degrees away
+        index = self.possible_orientations.index(coord)
+        return self.possible_orientations[(index + 4) % 8]
 
     
     def driveMotorsExt(self,lpow,rpow):
@@ -257,8 +264,7 @@ class MyRob(CRobLinkAngs):
         if entry_after_last[2:5] == [ '1', '1','1'] or entry_after_last[2:5] == ['0', '1', '1'] or entry_after_last[2:5] == ['1','1','0']:
             self.intersect_directions.add(self.get_facing_direction())
 
-
-        print(f"INTERSECT DIRECTIONS: {self.intersect_directions}")
+        print(f"INTERSECT DIRECTIONS: {[list(x) for x in self.intersect_directions if x != set()]}")
 
     
     def print_function(self, detected_out_first, detected_inside_first, detected_middle_first, detected_out_second, detected_inside_second, detected_middle_second,entry):
