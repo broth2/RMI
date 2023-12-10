@@ -25,7 +25,7 @@ class MyRob(CRobLinkAngs):
     entry_orientation = None
     rotating_now = False
     objective_orientation = None
-
+    paths = [0,0,0,0,0,0,0,0]
 
     def __init__(self, rob_name, rob_id, angles, host):
         CRobLinkAngs.__init__(self, rob_name, rob_id, angles, host)
@@ -148,6 +148,15 @@ class MyRob(CRobLinkAngs):
             #self.driveMotorsExt(0.07,0.07)
 
 
+    #este código vai ser usado converter os pontos cardeais para paths, para dar continuidade ao código da entrega anterior
+    """ self.intersect_directions = [direction for direction in self.intersect_directions if direction]
+                # Calculating paths in order to 
+                for direction in self.intersect_directions:
+                    self.paths[self.possible_orientations.index(direction)] = 1
+                
+                print(f"paths: {self.paths}") """
+
+
     def get_antipodal(self, coord):
         # transforms a cardinal point like "N" or "SW" to its antipodal 180 degrees away
         index = self.possible_orientations.index(coord)
@@ -225,7 +234,9 @@ class MyRob(CRobLinkAngs):
         last_3_entries = self.history[last_data_index-2:last_data_index+1]
         entry_after_last = self.measures.lineSensor
         #print(f"entry after last {entry_after_last}\n")
-        self.eval(first_3_entries,last_3_entries,entry_after_last)
+        #only if there is enough data on first and last entries
+        if len(first_3_entries) == 4 and len(last_3_entries) == 3:
+            self.eval(first_3_entries,last_3_entries,entry_after_last)
 
 
     def eval(self, first_entries, last_entries, entry_after_last):
