@@ -106,9 +106,16 @@ class MyRob(CRobLinkAngs):
     def go(self):
         was_in_intersect = self.intersect 
         self.intersect = self.detect_intersection(self.measures.lineSensor)
+
+        if self.rotating_now:
+            #calculate curr direction degree and objective degree difference
+            print(f"rotating to {self.objective_orientation} 2")
+            self.intersect = False                                          #isto e para no prox ciclo nao entrar no "was in intersect",
+            return self.rotate_to_orientation(self.objective_orientation)   #para evitar detetar intersecao depois de rodar, o rotate_to_orientation, se tiver orientado entao faz follow line
         
         if self.intersect:
             if self.first_time_intersect:
+                print("inside intersection")
                 self.first_time_intersect = False
                 self.entry_orientation = self.get_facing_direction()
                 self.intersect_directions.append(self.get_antipodal(self.get_facing_direction()))
@@ -117,6 +124,7 @@ class MyRob(CRobLinkAngs):
             return
         else:
             if was_in_intersect:
+                print("outside intersection")
                 self.analyze()
                 rel_dirs = self.get_relative_directions()
                 print(rel_dirs)
@@ -132,10 +140,7 @@ class MyRob(CRobLinkAngs):
                 self.rotating_now = True
                 self.objective_orientation = self.intersect_directions[rel_dirs.index(min(rel_dirs, key=abs))]
                 self.intersect_directions.clear()
-
-            if self.rotating_now:
-                #calculate curr direction degree and objective degree difference
-                print(f"rotating to {self.objective_orientation}")
+                print(f"rotating to {self.objective_orientation} 1")
                 return self.rotate_to_orientation(self.objective_orientation)
             
             
@@ -461,6 +466,8 @@ class MyRob(CRobLinkAngs):
             self.x_predict = round(self.x_predict)-cntr_distance
         else:
             self.x_predict = round(self.x_predict)
+        
+        print(f"overide x/y: {self.x_predict} {self.y_predict}\n")
 
     def rotate_to_orientation(self, destination):
         orientation_to_angle = {
@@ -476,17 +483,17 @@ class MyRob(CRobLinkAngs):
         #get current orientation
         destination_angle = orientation_to_angle[destination]
         diff = destination_angle - self.measures.compass            # TODO tirar daqui a leitura da compass
-        if abs(diff) <= 5 :
-            print("done rotating...")
+        if abs(diff) < 2 :
+            print(f"done rotating... {self.measures.lineSensor}")
             self.rotating_now = False
             self.objective_orientation = None
-            self.driveMotorsExt(0, 0)
+            self.follow_line(self.measures.lineSensor)
             return
         else:
             if abs(diff) > 180:
                 if diff >= 0:
                     if diff > 30:
-                        self.driveMotorsExt(-0.8, 0.8)
+                        self.driveMotorsExt(-0.08, 0.08)
                         return
                     if diff > 10:
                         self.driveMotorsExt(-0.03, 0.03)
@@ -496,7 +503,7 @@ class MyRob(CRobLinkAngs):
                         return
                 else:
                     if diff < -30:
-                        self.driveMotorsExt(0.8, -0.8)
+                        self.driveMotorsExt(0.08, -0.08)
                         return
                     if diff < -10:
                         self.driveMotorsExt(0.03, -0.03)
@@ -507,7 +514,7 @@ class MyRob(CRobLinkAngs):
             else:
                 if diff <0:
                     if diff < -30:
-                        self.driveMotorsExt(0.8, -0.8)
+                        self.driveMotorsExt(0.08, -0.08)
                         return
                     if diff < -10:
                         self.driveMotorsExt(0.03, -0.03)
@@ -518,7 +525,7 @@ class MyRob(CRobLinkAngs):
                 else:
 
                     if diff > 30:
-                        self.driveMotorsExt(-0.8, 0.8)
+                        self.driveMotorsExt(-0.08, 0.08)
                         return
                     if diff > 10:
                         self.driveMotorsExt(-0.03, 0.03)
