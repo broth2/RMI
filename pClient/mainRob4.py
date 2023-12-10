@@ -20,7 +20,11 @@ class MyRob(CRobLinkAngs):
     intersect = False
     stop = False
     possible_orientations = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+    angles = {'E': 0, 'NE': 45, 'N': 90, 'NW': 135, 'W': 180, 'SW': -135, 'S': -90, 'SE': -45}
     first_time_intersect = True
+    entry_orientation = None
+    rotating_now = False
+    objective_orientation = None
 
 
     def __init__(self, rob_name, rob_id, angles, host):
@@ -106,25 +110,37 @@ class MyRob(CRobLinkAngs):
         if self.intersect:
             if self.first_time_intersect:
                 self.first_time_intersect = False
+                self.entry_orientation = self.get_facing_direction()
                 self.intersect_directions.append(self.get_antipodal(self.get_facing_direction()))
             self.driveMotorsExt(0.04,0.04)
             self.append_history(self.measures.lineSensor)
+            return
         else:
-            self.first_time_intersect = True
+            if was_in_intersect:
+                self.analyze()
+                rel_dirs = self.get_relative_directions()
+                print(rel_dirs)
+                if 45 in rel_dirs or -45 in rel_dirs:
+                    self.aproximate_coords(1)
+                elif 90 in rel_dirs or -90 in rel_dirs:
+                    self.aproximate_coords(2)
+                elif 135 in rel_dirs or -135 in rel_dirs:
+                    self.aproximate_coords(3)
+                self.reset_history()
+                self.entry_orientation = None
+                self.first_time_intersect = True
+                self.rotating_now = True
+                self.objective_orientation = self.intersect_directions[rel_dirs.index(min(rel_dirs, key=abs))]
+                self.intersect_directions.clear()
+
+            if self.rotating_now:
+                #calculate curr direction degree and objective degree difference
+                print(f"rotating to {self.objective_orientation}")
+                return self.rotate_to_orientation(self.objective_orientation)
+            
+            
             self.follow_line(self.measures.lineSensor)
             #self.driveMotorsExt(0.07,0.07)
-
-        if was_in_intersect and not self.intersect:
-            print(f"END INTERSECTION")
-            #analise    
-            self.analyze()
-            #clear self.history
-            self.reset_history()
-            self.intersect_directions.clear()
-        
-
-
-        print("CYCLE END \n\n")
 
 
     def get_antipodal(self, coord):
@@ -175,6 +191,7 @@ class MyRob(CRobLinkAngs):
 
         if error == 0:
             self.driveMotorsExt(0.07, 0.07)
+            self.rot_predict = math.radians(self.angles[self.get_facing_direction()])
         else:
             correction = (0.04 * error)
             left_motor_speed = 0.02 + correction
@@ -183,9 +200,6 @@ class MyRob(CRobLinkAngs):
 
 
     def detect_intersection(self, lineSensor):
-
-
-
         if '1' in lineSensor[0] or '1' in lineSensor[1] or '1' in lineSensor[5] or '1' in lineSensor[6]:
             #print(f"found intersection at ({round(self.x_predict,2)}, {round(self.y_predict,2)})")
             return True
@@ -195,24 +209,17 @@ class MyRob(CRobLinkAngs):
 
 
     def analyze(self):
-        print("\n ANALYZE \n")
         last_data_index =  0
-
 
         for index,entry in enumerate(self.history):
             if self.history[index] != '':
                   last_data_index = index  
 
-
-        print(f"Last data index {last_data_index}\n")
-
         #get 3 first entries and last 2
         first_3_entries = self.history[0:4]
         last_3_entries = self.history[last_data_index-2:last_data_index+1]
         entry_after_last = self.measures.lineSensor
-
-        print(f"entry after last {entry_after_last}\n")
-
+        #print(f"entry after last {entry_after_last}\n")
         self.eval(first_3_entries,last_3_entries,entry_after_last)
 
 
@@ -238,11 +245,11 @@ class MyRob(CRobLinkAngs):
         if exit_first == exit_second:
             exit_first = last_entries[-3]
 
-        print(f"FIRST ENTRY: {first_entry}")
-        print(f"SECOND ENTRY: {second_entry}")
+        # print(f"FIRST ENTRY: {first_entry}")
+        # print(f"SECOND ENTRY: {second_entry}")
 
-        print(f"EXIT FIRST: {exit_first}")
-        print(f"EXIT SECOND: {exit_second}")
+        # print(f"EXIT FIRST: {exit_first}")
+        # print(f"EXIT SECOND: {exit_second}")
         #check if first entry has 1's in the first or last position
 
         detected_out_first_entry, detected_inside_first_entry, detected_middle_first_entry = self.where_detected(first_entry)
@@ -250,9 +257,6 @@ class MyRob(CRobLinkAngs):
 
         detected_out_first_exit, detected_inside_first_exit, detected_middle_first_exit = self.where_detected(exit_first)
         detected_out_second_exit, detected_inside_second_exit, detected_middle_second_exit = self.where_detected(exit_second)
-
-        #self.print_function(detected_out_first_entry,detected_inside_first_entry,detected_middle_first_entry,detected_out_second_entry,detected_inside_second_entry,detected_middle_second_entry,True)
-        #self.print_function(detected_out_first_exit,detected_inside_first_exit,detected_middle_first_exit,detected_out_second_exit,detected_inside_second_exit,detected_middle_second_exit,False)
 
         info_entry = [detected_out_first_entry,detected_inside_first_entry,detected_middle_first_entry,detected_out_second_entry,detected_inside_second_entry,detected_middle_second_entry]
         info_exit = [detected_out_first_exit,detected_inside_first_exit,detected_middle_first_exit,detected_out_second_exit,detected_inside_second_exit,detected_middle_second_exit]
@@ -270,23 +274,7 @@ class MyRob(CRobLinkAngs):
         
         print(f"INTERSECT DIRECTIONS: {self.intersect_directions}")
 
-    
-    def print_function(self, detected_out_first, detected_inside_first, detected_middle_first, detected_out_second, detected_inside_second, detected_middle_second,entry):
-        if entry:
-            print("\nENTRY\n")
-        else:
-            print("\nEXIT\n")
 
-        print(f"DETECTED OUT FIRST: {detected_out_first}")
-        print(f"DETECTED INSIDE FIRST: {detected_inside_first}")
-        print(f"DETECTED MIDDLE FIRST: {detected_middle_first}\n")
-    
-        print(f"DETECTED OUT SECOND: {detected_out_second}")
-        print(f"DETECTED INSIDE SECOND: {detected_inside_second}")
-        print(f"DETECTED MIDDLE SECOND: {detected_middle_second}\n ")
-            
-
-    
     def handle_first(self, arr,entry_after_last):
         detected_out_first = arr[0]
         detected_inside_first = arr[1]
@@ -338,7 +326,7 @@ class MyRob(CRobLinkAngs):
 
         if detected_out_second and not detected_inside_second:
             direction = detected_out_second[1]
-            print(f"detected out second {detected_out_second}")
+            #print(f"detected out second {detected_out_second}")
             if direction == 'left':
                 if self.get_facing_direction(45) not in self.intersect_directions:
                     directions.append(self.get_facing_direction(45))
@@ -417,33 +405,135 @@ class MyRob(CRobLinkAngs):
         else:
             return "W"
 
+    def get_relative_directions(self):
+        # given the robots orientation when entering the intersection,
+        # and the paths detected, returns a list with the angles in degrees
+        # of the found paths, relative to its point of entry  
+        self.entry_orientation
+        self.intersect_directions
+        rel_angles = {'N': 0, 'NE': 45, 'E': 90, 'SE': 135, 'S': 180, 'SW': 225, 'W': 270, 'NW': 315}
+        rel_orientations = []
+        entry_orientation_deg = rel_angles[self.entry_orientation]
+
+        for coord in self.intersect_directions:
+            distance = (rel_angles[coord] - entry_orientation_deg) % 360
+            # Ensure the result is in the range [-180, 180)
+            distance = (distance + 180) % 360 - 180
+            rel_orientations.append(distance)
+        
+        return rel_orientations
     
+    def aproximate_coords(self, code):
+        # depending on the type of paths found,
+        # aproximates the current X/Y prediction
+        curr_orientation = self.get_facing_direction()
+        last_pow=0  #TODO implement saving last drive motors value
+        #se for vertical: x=round(x); N: y=round(y)+distancia_ao_centro (para cima), S: y=round(y)-distancia_ao_centro(para baixo)
+            #se for horizontal: y=round(y); E: x=round(x)+distancia_ao_centro (para direita), W: x=round(x)-distancia_ao_centro (para esquerda)
+            # se for diagonal NE: y=round(y)+distancia_centro/sqrt(2), x=round(x)+distancia_centro/sqrt(2)
+            #                 SE: y=round(y)-distancia_centro/sqrt(2), x=round(x)+distancia_centro/sqrt(2)
+            #                 SW: y=round(y)-distancia_centro/sqrt(2), x=round(x)-distancia_centro/sqrt(2)
+            #                 NW: y=round(y)+distancia_centro/sqrt(2), x=round(x)-distancia_centro/sqrt(2) 
+        if code ==1:
+            #45deg paths, aprox to zero
+            #distancia ao centro = 0.24 + sqrt(2)*0.1 - 0.438 + last_pow/2
+            cntr_distance = 0.24 + (sqrt(2)*0.1) - 0.438 + last_pow/2
+        elif code==2:
+            #90deg paths, aprox to -0.26
+            #distancia ao centro = 0.1 - 0.438 + last_pow/2
+            cntr_distance = 0.1 - 0.438 + last_pow/2
+        elif code == 3:
+            #135deg paths, aprox to -0.438
+            cntr_distance = -0.438  #TODO verificar que isto faz sentido
+
+        if len(curr_orientation)==2:
+            cntr_distance=cntr_distance/sqrt(2)
+
+        if 'N' in curr_orientation:
+            self.y_predict = round(self.y_predict)+cntr_distance
+        elif 'S' in curr_orientation:
+            self.y_predict = round(self.y_predict)-cntr_distance
+        else:
+            self.y_predict = round(self.y_predict)
+        if 'E' in curr_orientation:
+            self.x_predict = round(self.x_predict)+cntr_distance
+        elif 'W' in curr_orientation:
+            self.x_predict = round(self.x_predict)-cntr_distance
+        else:
+            self.x_predict = round(self.x_predict)
+
+    def rotate_to_orientation(self, destination):
+        orientation_to_angle = {
+            "E": 0,
+            "NE": 45,
+            "N": 90,
+            "NW": 135,
+            "W": 180,
+            "SW": -135,
+            "S": -90,
+            "SE": -45,
+        }
+        #get current orientation
+        destination_angle = orientation_to_angle[destination]
+        diff = destination_angle - self.measures.compass            # TODO tirar daqui a leitura da compass
+        if abs(diff) <= 5 :
+            print("done rotating...")
+            self.rotating_now = False
+            self.objective_orientation = None
+            self.driveMotorsExt(0, 0)
+            return
+        else:
+            if abs(diff) > 180:
+                if diff >= 0:
+                    if diff > 30:
+                        self.driveMotorsExt(-0.8, 0.8)
+                        return
+                    if diff > 10:
+                        self.driveMotorsExt(-0.03, 0.03)
+                        return
+                    else:
+                        self.driveMotorsExt(-0.005, 0.005)
+                        return
+                else:
+                    if diff < -30:
+                        self.driveMotorsExt(0.8, -0.8)
+                        return
+                    if diff < -10:
+                        self.driveMotorsExt(0.03, -0.03)
+                        return
+                    else:
+                        self.driveMotorsExt(0.005, -0.005)
+                        return
+            else:
+                if diff <0:
+                    if diff < -30:
+                        self.driveMotorsExt(0.8, -0.8)
+                        return
+                    if diff < -10:
+                        self.driveMotorsExt(0.03, -0.03)
+                        return
+                    else:
+                        self.driveMotorsExt(0.005, -0.005)
+                        return
+                else:
+
+                    if diff > 30:
+                        self.driveMotorsExt(-0.8, 0.8)
+                        return
+                    if diff > 10:
+                        self.driveMotorsExt(-0.03, 0.03)
+                        return
+                    else:
+                        self.driveMotorsExt(-0.005, 0.005)
+                        return
 
     def append_history(self, arr):
-        print(f" M : {self.m}")
+        #print(f" M : {self.m}")
         self.history[self.m] = arr
         self.m += 1
 
         if self.m == 20:
             self.m = 0
-
-
-    def handle_intersections(self):
-        
-
-        for i in range(len(self.history)):
-            tuple_values = self.history[i]
-            #get the index of the first entry with corner = True
-            if len(tuple_values) >= 2 and tuple_values[1] is True:
-                # CHECK UNTIL THE END of history if there is any tuple_values[1] == false
-                print(f"I: {i} \n")
-                for j in range(1, len(self.history)):
-                    next_index = (i + j) % len(self.history)
-                    next_entry = self.history[next_index]
-                    if len(next_entry) >= 2 and next_entry[1] is False:
-                        return True
-                    pass
-                return False
 
 
     def reset_history(self):
