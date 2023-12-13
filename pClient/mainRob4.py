@@ -25,6 +25,7 @@ class MyRob(CRobLinkAngs):
     entry_orientation = None
     rotating_now = False
     objective_orientation = None
+    need_to_center = False
 
 
     def __init__(self, rob_name, rob_id, angles, host):
@@ -101,6 +102,11 @@ class MyRob(CRobLinkAngs):
             print('Rotate slowly left')
             self.driveMotors(0.0,0.1)
         else:
+            # if int(self.simTime)-self.measures.time<4:
+            #     self.create_map() TODO: create_map()
+            if self.finished: 
+                self.finish()
+                return
             self.go()
 
     def go(self):
@@ -112,40 +118,48 @@ class MyRob(CRobLinkAngs):
             print(f"rotating to {self.objective_orientation} 2")
             self.intersect = False                                          #isto e para no prox ciclo nao entrar no "was in intersect",
             return self.rotate_to_orientation(self.objective_orientation)   #para evitar detetar intersecao depois de rodar, o rotate_to_orientation, se tiver orientado entao faz follow line
-        
-        if self.intersect:
-            if self.first_time_intersect:
-                print("inside intersection")
-                self.first_time_intersect = False
-                self.entry_orientation = self.get_facing_direction()
-                self.intersect_directions.append(self.get_antipodal(self.get_facing_direction()))
-            self.driveMotorsExt(0.04,0.04)
-            self.append_history(self.measures.lineSensor)
-            return
+        if self.need_to_center:
+            # return self.move_to_center():
+            # need to move more? (self.move_me is true?)
+            # if so, move a bit and determine if need to move more
+            # else, arrived=true, need_to_center=false, move_me=false
+            pass
         else:
-            if was_in_intersect:
-                print("outside intersection")
-                self.analyze()
-                rel_dirs = self.get_relative_directions()
-                print(rel_dirs)
-                if 45 in rel_dirs or -45 in rel_dirs:
-                    self.aproximate_coords(1)
-                elif 90 in rel_dirs or -90 in rel_dirs:
-                    self.aproximate_coords(2)
-                elif 135 in rel_dirs or -135 in rel_dirs:
-                    self.aproximate_coords(3)
-                self.reset_history()
-                self.entry_orientation = None
-                self.first_time_intersect = True
-                self.rotating_now = True
-                self.objective_orientation = self.intersect_directions[rel_dirs.index(min(rel_dirs, key=abs))]
-                self.intersect_directions.clear()
-                print(f"rotating to {self.objective_orientation} 1")
-                return self.rotate_to_orientation(self.objective_orientation)
-            
-            
-            self.follow_line(self.measures.lineSensor)
-            #self.driveMotorsExt(0.07,0.07)
+            if self.intersect:
+                if self.first_time_intersect:
+                    print("inside intersection")
+                    self.first_time_intersect = False
+                    self.entry_orientation = self.get_facing_direction()
+                    self.intersect_directions.append(self.get_antipodal(self.get_facing_direction()))
+                self.driveMotorsExt(0.04,0.04)
+                self.append_history(self.measures.lineSensor)
+                return
+            else:
+                if was_in_intersect:
+                    print("outside intersection")
+                    self.analyze()
+                    rel_dirs = self.get_relative_directions()
+                    print(rel_dirs)
+                    if 45 in rel_dirs or -45 in rel_dirs:
+                        self.aproximate_coords(1)
+                    elif 90 in rel_dirs or -90 in rel_dirs:
+                        self.aproximate_coords(2)
+                    elif 135 in rel_dirs or -135 in rel_dirs:
+                        self.aproximate_coords(3)
+                    self.reset_history()
+                    self.entry_orientation = None
+                    self.first_time_intersect = True
+                    self.rotating_now = True
+                    self.objective_orientation = self.intersect_directions[rel_dirs.index(min(rel_dirs, key=abs))]
+                    self.intersect_directions.clear()
+                    # return move_to_center()
+                    # & remover 2 linhas abaixo
+                    print(f"rotating to {self.objective_orientation} 1")
+                    return self.rotate_to_orientation(self.objective_orientation)
+                
+                
+                self.follow_line(self.measures.lineSensor)
+                #self.driveMotorsExt(0.07,0.07)
 
 
     def get_antipodal(self, coord):
@@ -361,7 +375,7 @@ class MyRob(CRobLinkAngs):
         return directions
     
 
-    def     where_detected(self, arr):
+    def where_detected(self, arr):
         detected_out = False
         detected_inside = False
         detected_middle = False
@@ -448,24 +462,28 @@ class MyRob(CRobLinkAngs):
             #distancia ao centro = 0.1 - 0.438 + last_pow/2
             cntr_distance = 0.1 - 0.438 + last_pow/2
         elif code == 3:
-            #135deg paths, aprox to -0.438
-            cntr_distance = -0.438  #TODO verificar que isto faz sentido
-
+            #135deg paths, aprox to -0.438          #TODO verificar que isto faz sentido
+            if self.measures.lineSensor[2:5] == ['1','0','1']:
+                cntr_distance = ((sqrt(2)*0.1)-0.438 - 0.438)/2
+            else:
+                cntr_distance = (sqrt(2)*0.1)-0.438 + last_pow/2  
+            
         if len(curr_orientation)==2:
             cntr_distance=cntr_distance/sqrt(2)
-
+        #TODO when vertical or horizontal, dont align one of the coordinates
+        # confirm that the solution to the above is comenting the else
         if 'N' in curr_orientation:
             self.y_predict = round(self.y_predict)+cntr_distance
         elif 'S' in curr_orientation:
             self.y_predict = round(self.y_predict)-cntr_distance
-        else:
-            self.y_predict = round(self.y_predict)
+        # else:
+        #     self.y_predict = round(self.y_predict)
         if 'E' in curr_orientation:
             self.x_predict = round(self.x_predict)+cntr_distance
         elif 'W' in curr_orientation:
             self.x_predict = round(self.x_predict)-cntr_distance
-        else:
-            self.x_predict = round(self.x_predict)
+        # else:
+        #     self.x_predict = round(self.x_predict)
         
         print(f"overide x/y: {self.x_predict} {self.y_predict}\n")
 
