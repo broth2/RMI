@@ -26,6 +26,7 @@ class MyRob(CRobLinkAngs):
     rotating_now = False
     objective_orientation = None
     need_to_center = False
+    finished = False
 
 
     def __init__(self, rob_name, rob_id, angles, host):
