@@ -155,6 +155,23 @@ class MyRob(CRobLinkAngs):
                     self.paths[self.possible_orientations.index(direction)] = 1
                 
                 print(f"paths: {self.paths}") """
+    
+
+    def get_angle_distance_2_points(self,point1, point2):
+        x1,y1 = point1[0], point1[1]
+
+        print(f"x1: {x1} y1: {y1}")
+        print(f"x2: {point2[0]} y2: {point2[1]}")
+        
+        x2,y2 = point2[0], point2[1]
+
+        distance = math.sqrt((x2-x1)**2 + (y2-y1)**2)
+        angle = math.atan2(y2-y1, x2-x1)
+        degrees = math.degrees(angle)
+
+        #degrees = (degrees + 360) % 360
+
+        return degrees, distance
 
 
     def get_antipodal(self, coord):
