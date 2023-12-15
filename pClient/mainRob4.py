@@ -172,17 +172,12 @@ class MyRob(CRobLinkAngs):
                         return self.rotate_to_orientation(self.objective_orientation)   #para evitar detetar intersecao depois de rodar, o rotate_to_orientation, se tiver orientado entao faz follow line
                     if self.need_to_center:
                         ## ALTERADO JOAO
-                        pass
                         self.move_to_center()
                         distance = self.get_distance_2_points((self.x_predict,self.y_predict),(self.new_x,self.new_y))
 
                         if distance <= 0.1:
                             self.arrived = True
                             self.need_to_center = False
-                        # return self.move_to_center():
-                        # need to move more? (self.move_me is true?)
-                        # if so, move a bit and determine if need to move more
-                        # else, arrived=true, need_to_center=false, move_me=false
                         ## FIM ALTERADO JOAO
                     else:
                         if self.intersect:
@@ -212,8 +207,10 @@ class MyRob(CRobLinkAngs):
                                 self.entry_orientation = None
                                 self.first_time_intersect = True
                                 self.intersect_directions.clear()
-                                # return move_to_center() TODO
+                                self.need_to_center = True
+                                self.first_time_move_to_center = True
                                 print(f"3->{self.paths}")
+                                return
                             
                             
                             self.follow_line(self.measures.lineSensor)
@@ -292,7 +289,7 @@ class MyRob(CRobLinkAngs):
 ##ALTERADO JOAO
 
     def move_to_center(self):
-
+        print("moving to center")
         if self.rotating_centre:
             return self.rotate_to_orientation(self.get_facing_direction())
 
