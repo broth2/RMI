@@ -1,12 +1,17 @@
-
 import sys
 from croblink import *
-from math import *
-import xml.etree.ElementTree as ET
 import math
+import xml.etree.ElementTree as ET
+from collections import deque
 
 CELLROWS=7
 CELLCOLS=14
+
+class Cell():
+    def __init__(self):
+        self.visited = False
+        self.paths = [-1,-1,-1,-1,-1,-1,-1,-1]
+        self.coords = None
 
 class MyRob(CRobLinkAngs):
     out_l = 0
@@ -19,18 +24,37 @@ class MyRob(CRobLinkAngs):
     m = 0
     intersect = False
     stop = False
-    possible_orientations = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
     angles = {'E': 0, 'NE': 45, 'N': 90, 'NW': 135, 'W': 180, 'SW': -135, 'S': -90, 'SE': -45}
     first_time_intersect = True
     entry_orientation = None
     rotating_now = False
+    ## ALTERADO JOÃO
+    rotating_centre = False
+    ## FIM ALTERADO JOAO
     objective_orientation = None
     need_to_center = False
+    first_cell = True
+    
+    visited_orientation = {}
+    paths = [0,0,0,0,0,0,0,0]   # TODO ver se deve ser 0 ou -1 [-1,-1,-1,-1,-1,-1,-1,-1]
+    possible_orientations = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+    coord_sum = {'N': (0,2), 'NE': (2,2), 'E': (2,0), 'SE': (2,-2), 'S': (0,-2), 'SW': (-2,-2), 'W': (-2,0), 'NW': (-2,2)}
+    has_new_coords = False
+    new_x = 0
+    new_y = 0
+    distance = 0
+    orientation = None
+    has_new_orientation = False
+    departure_orientation = None
+    first_r = True
+    distance = 0
+    prev_distance = None
+    arrived = True
     finished = False
-    paths = [0,0,0,0,0,0,0,0]
 
     def __init__(self, rob_name, rob_id, angles, host):
         CRobLinkAngs.__init__(self, rob_name, rob_id, angles, host)
+        self.state = [[None] * 25 for _ in range(11)]
 
     # In this map the center of cell (i,j), (i in 0..6, j in 0..13) is mapped to labMap[i*2][j*2].
     # to know if there is a wall on top of cell(i,j) (i in 0..5), check if the value of labMap[i*2+1][j*2] is space or not
@@ -111,83 +135,189 @@ class MyRob(CRobLinkAngs):
             self.go()
 
     def go(self):
-        was_in_intersect = self.intersect 
-        self.intersect = self.detect_intersection(self.measures.lineSensor)
-
         if self.rotating_now:
-            #calculate curr direction degree and objective degree difference
-            print(f"rotating to {self.objective_orientation} 2")
+            print(f"rotating to {self.objective_orientation} 3")
             self.intersect = False                                          #isto e para no prox ciclo nao entrar no "was in intersect",
             return self.rotate_to_orientation(self.objective_orientation)   #para evitar detetar intersecao depois de rodar, o rotate_to_orientation, se tiver orientado entao faz follow line
-        if self.need_to_center:
-            # return self.move_to_center():
-            # need to move more? (self.move_me is true?)
-            # if so, move a bit and determine if need to move more
-            # else, arrived=true, need_to_center=false, move_me=false
-            pass
-        else:
-            if self.intersect:
-                if self.first_time_intersect:
-                    print("inside intersection")
-                    self.first_time_intersect = False
-                    self.entry_orientation = self.get_facing_direction()
-                    self.intersect_directions.append(self.get_antipodal(self.get_facing_direction()))
-                self.driveMotorsExt(0.04,0.04)
-                self.append_history(self.measures.lineSensor)
+                    
+        if self.has_new_coords:
+            # ve se ja chegou e mexe-se
+            self.distance = ((self.x_predict-self.new_x)**2 + (self.y_predict-self.new_y)**2)**0.5
+            if self.distance<1.5: print("distance", self.distance)
+            if self.prev_distance is None: self.prev_distance = self.distance
+            if self.distance==0 or (self.distance > self.prev_distance and round(self.distance,1)<=0.1):
+                self.arrived = True
+            else:
+                self.arrived = False
+            self.prev_distance = self.distance
+            if self.arrived:
+                print("arrived")
+                self.has_new_coords = False
+                self.distance = None
+                self.prev_distance = None
+                self.departure_orientation = self.orientation = self.get_facing_direction()
+                return self.driveMotorsExt(0,0)
+            else:
+                if round(self.distance,1)>=0.8:
+                    self.follow_line(self.measures.lineSensor)
+                else:
+                    was_in_intersect = self.intersect 
+                    self.intersect = self.detect_intersection(self.measures.lineSensor)
+
+                    if self.rotating_now:
+                        #TODO unreachable code?
+                        #calculate curr direction degree and objective degree difference
+                        print(f"rotating to {self.objective_orientation} 2")
+                        self.intersect = False                                          #isto e para no prox ciclo nao entrar no "was in intersect",
+                        return self.rotate_to_orientation(self.objective_orientation)   #para evitar detetar intersecao depois de rodar, o rotate_to_orientation, se tiver orientado entao faz follow line
+                    if self.need_to_center:
+                        ## ALTERADO JOAO
+                        pass
+                        self.move_to_center()
+                        distance = self.get_distance_2_points((self.x_predict,self.y_predict),(self.new_x,self.new_y))
+
+                        if distance <= 0.1:
+                            self.arrived = True
+                            self.need_to_center = False
+                        # return self.move_to_center():
+                        # need to move more? (self.move_me is true?)
+                        # if so, move a bit and determine if need to move more
+                        # else, arrived=true, need_to_center=false, move_me=false
+                        ## FIM ALTERADO JOAO
+                    else:
+                        if self.intersect:
+                            if self.first_time_intersect:
+                                print("inside intersection")
+                                self.first_time_intersect = False
+                                self.entry_orientation = self.get_facing_direction()
+                                self.intersect_directions.append(self.get_antipodal(self.get_facing_direction()))
+                            self.driveMotorsExt(0.04,0.04)
+                            self.append_history(self.measures.lineSensor)
+                            return
+                        else:
+                            if was_in_intersect:
+                                print("outside intersection")
+                                self.analyze()
+                                rel_dirs = self.get_relative_directions()
+                                self.directions_to_bin()
+
+                                print(f"relative directions: {rel_dirs}")
+                                if 45 in rel_dirs or -45 in rel_dirs:
+                                    self.aproximate_coords(1)
+                                elif 90 in rel_dirs or -90 in rel_dirs:
+                                    self.aproximate_coords(2)
+                                elif 135 in rel_dirs or -135 in rel_dirs:
+                                    self.aproximate_coords(3, 0 in rel_dirs)
+                                self.reset_history()
+                                self.entry_orientation = None
+                                self.first_time_intersect = True
+                                self.intersect_directions.clear()
+                                # return move_to_center() TODO
+                                print(f"3->{self.paths}")
+                            
+                            
+                            self.follow_line(self.measures.lineSensor)
+                            #self.driveMotorsExt(0.07,0.07)
+                            return
+                        
+        
+        self.orientation = self.get_facing_direction()
+        
+        if not self.arrived: return
+        if self.first_cell:
+            coord = (0,0)
+            if coord not in self.visited_orientation.keys():
+                self.paths = [0,0,0,0,0,0,0,0]
+                self.visited_orientation[coord] = {'visited': set()}
+                self.first_r = True
+            
+            self.visited_orientation[coord]['visited'].add(self.orientation)
+            if len(self.visited_orientation[coord]['visited']) < 8:
+                if self.first_r and len(self.visited_orientation[coord]['visited']) == 2:
+                    for elem in self.visited_orientation[coord]['visited']:
+                        if self.orientation != elem:
+                            self.visited_orientation[coord]['visited'].remove(elem)
+                            break
+                    self.first_r = False
+                
+                if self.measures.lineSensor[3] == '1': self.paths[self.possible_orientations.index(self.orientation)] = 1
+                self.driveMotorsExt(0.13, -0.13)
                 return
             else:
-                if was_in_intersect:
-                    print("outside intersection")
-                    self.analyze()
-                    rel_dirs = self.get_relative_directions()
-                    print(rel_dirs)
-                    if 45 in rel_dirs or -45 in rel_dirs:
-                        self.aproximate_coords(1)
-                    elif 90 in rel_dirs or -90 in rel_dirs:
-                        self.aproximate_coords(2)
-                    elif 135 in rel_dirs or -135 in rel_dirs:
-                        self.aproximate_coords(3)
-                    self.reset_history()
-                    self.entry_orientation = None
-                    self.first_time_intersect = True
-                    self.rotating_now = True
-                    self.objective_orientation = self.intersect_directions[rel_dirs.index(min(rel_dirs, key=abs))]
-                    self.intersect_directions.clear()
-                    # return move_to_center()
-                    # & remover 2 linhas abaixo
-                    print(f"rotating to {self.objective_orientation} 1")
-                    return self.rotate_to_orientation(self.objective_orientation)
-                
-                
-                self.follow_line(self.measures.lineSensor)
-                #self.driveMotorsExt(0.07,0.07)
-
-
-    #este código vai ser usado converter os pontos cardeais para paths, para dar continuidade ao código da entrega anterior
-    """ self.intersect_directions = [direction for direction in self.intersect_directions if direction]
-                # Calculating paths in order to 
-                for direction in self.intersect_directions:
-                    self.paths[self.possible_orientations.index(direction)] = 1
-                
-                print(f"paths: {self.paths}") """
-    
-
-    def get_angle_distance_2_points(self,point1, point2):
-        x1,y1 = point1[0], point1[1]
-
-        print(f"x1: {x1} y1: {y1}")
-        print(f"x2: {point2[0]} y2: {point2[1]}")
+                self.first_cell = False
         
+        # fill state matrix
+        x = int(round(self.x_predict)/2)
+        y = int(round(self.y_predict)/2)
+        if self.state[5-y][12+x] is None:
+            cell = Cell()
+            cell.visited = True
+            cell.coords = (round(self.x_predict), round(self.y_predict))
+            cell.paths = self.paths
+            self.state[5-y][12+x] = cell
+            self.create_neighbours(cell)
+        else:
+            if not self.state[5-y][12+x].visited:
+                self.state[5-y][12+x].visited = True
+                self.state[5-y][12+x].paths = self.paths
+                self.create_neighbours(self.state[5-y][12+x])
+
+        if self.objective_orientation is None:
+            destination = self.choose_path(self.departure_orientation, self.state[5-y][12+x])
+            if destination is None:
+                self.finished = True
+                return
+            self.objective_orientation = destination
+            self.rotate_to_orientation(destination)
+            return
+        
+        self.objective_orientation = None
+        # if self.has_new_orientation:      #TODO considerar meter codigo abaixo neste if
+        specific_coord_sum = self.coord_sum[self.orientation]
+        self.new_x = round(self.state[5-y][12+x].coords[0] + specific_coord_sum[0])
+        self.new_y = round(self.state[5-y][12+x].coords[1] + specific_coord_sum[1])
+        self.has_new_coords = True
+        print(f"moving to ({self.new_x},{self.new_y})")
+        self.create_map()
+
+
+    def directions_to_bin(self):
+        self.paths = [0,0,0,0,0,0,0,0]
+        #este código vai ser usado converter os pontos cardeais para paths, para dar continuidade ao código da entrega anterior
+        for direction in self.intersect_directions:
+            self.paths[self.possible_orientations.index(direction)] = 1
+        
+        print(f"paths: {self.paths}")
+    
+##ALTERADO JOAO
+
+    def move_to_center(self):
+
+        if self.rotating_centre:
+            return self.rotate_to_orientation(self.get_facing_direction())
+
+        if self.first_time_move_to_center:
+            self.first_time_move_to_center = False
+            self.rotating_centre = True
+            self.rotate_to_orientation(self.get_facing_direction())
+            return 
+
+        #round x and y to nearest multiple of 2
+        distance = self.get_distance_2_points((self.x_predict,self.y_predict),(self.new_x,self.new_y))
+        
+        if distance > 0.1:
+            self.driveMotorsExt(0.03, 0.03)
+        return
+
+    def get_distance_2_points(self,point1, point2):
+
+        x1,y1 = point1[0], point1[1]
         x2,y2 = point2[0], point2[1]
 
         distance = math.sqrt((x2-x1)**2 + (y2-y1)**2)
-        angle = math.atan2(y2-y1, x2-x1)
-        degrees = math.degrees(angle)
 
-        #degrees = (degrees + 360) % 360
-
-        return degrees, distance
-
+        return distance
+## FIM ALTERADO JOAO
 
     def get_antipodal(self, coord):
         # transforms a cardinal point like "N" or "SW" to its antipodal 180 degrees away
@@ -464,6 +594,7 @@ class MyRob(CRobLinkAngs):
         entry_orientation_deg = rel_angles[self.entry_orientation]
 
         for coord in self.intersect_directions:
+
             distance = (rel_angles[coord] - entry_orientation_deg) % 360
             # Ensure the result is in the range [-180, 180)
             distance = (distance + 180) % 360 - 180
@@ -471,7 +602,7 @@ class MyRob(CRobLinkAngs):
         
         return rel_orientations
     
-    def aproximate_coords(self, code):
+    def aproximate_coords(self, code, has_north_path=None):
         # depending on the type of paths found,
         # aproximates the current X/Y prediction
         curr_orientation = self.get_facing_direction()
@@ -484,21 +615,24 @@ class MyRob(CRobLinkAngs):
             #                 NW: y=round(y)+distancia_centro/sqrt(2), x=round(x)-distancia_centro/sqrt(2) 
         if code ==1:
             #45deg paths, aprox to zero
-            #distancia ao centro = 0.24 + sqrt(2)*0.1 - 0.438 + last_pow/2
-            cntr_distance = 0.24 + (sqrt(2)*0.1) - 0.438 + last_pow/2
+            cntr_distance = 0.24 + (math.sqrt(2)*0.1) - 0.438 + last_pow/2
         elif code==2:
             #90deg paths, aprox to -0.26
-            #distancia ao centro = 0.1 - 0.438 + last_pow/2
             cntr_distance = 0.1 - 0.438 + last_pow/2
         elif code == 3:
-            #135deg paths, aprox to -0.438          #TODO verificar que isto faz sentido
+            #135deg paths
             if self.measures.lineSensor[2:5] == ['1','0','1']:
-                cntr_distance = ((sqrt(2)*0.1)-0.438 - 0.438)/2
+                cntr_distance = (0.1/(2*math.sqrt(2))) - 0.438
+            elif self.measures.lineSensor[2:5] == ['0','0','0']:
+                cntr_distance = 0.1/math.sqrt(2) + last_pow/2 - 0.438 
             else:
-                cntr_distance = (sqrt(2)*0.1)-0.438 + last_pow/2  
+                if has_north_path:
+                    cntr_distance = 0.1/math.sqrt(2) + last_pow/2 - 0.438 
+                else:
+                    cntr_distance = (2*(0.1/math.sqrt(2))-0.16)/2 - 0.438 
             
         if len(curr_orientation)==2:
-            cntr_distance=cntr_distance/sqrt(2)
+            cntr_distance=cntr_distance/math.sqrt(2)
         #TODO when vertical or horizontal, dont align one of the coordinates
         # confirm that the solution to the above is comenting the else
         if 'N' in curr_orientation:
@@ -516,6 +650,97 @@ class MyRob(CRobLinkAngs):
         
         print(f"overide x/y: {self.x_predict} {self.y_predict}\n")
 
+    def create_neighbours(self, cell):
+        # fills state with information on surrounding cells
+        # print("creating neighbours for", cell.coords)
+        indices_of_paths = [i for i, x in enumerate(cell.paths) if x == 1]
+        orientation_of_paths = [self.possible_orientations[i] for i in indices_of_paths]
+        destination_of_paths = [(self.coord_sum[i][0] + cell.coords[0], self.coord_sum[i][1] + cell.coords[1])for i in orientation_of_paths]
+        antipodal_of_paths = [self.get_antipodal(crdnt) for crdnt in orientation_of_paths]
+        antipodal_index_of_paths = [self.possible_orientations.index(i) for i in antipodal_of_paths]
+        for i in range(len(destination_of_paths)):
+            if self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)] is None:
+                cell = Cell()
+                cell.coords = destination_of_paths[i]
+                cell.paths[antipodal_index_of_paths[i]] = 1
+                self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)] = cell
+            else:
+                # if self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].visited == True:
+                #     return
+                if self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].paths[antipodal_index_of_paths[i]] == -1:
+                    self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].paths[antipodal_index_of_paths[i]] = 1
+                elif self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].paths[antipodal_index_of_paths[i]] == 0:
+                    print("no changes due to info error on", self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].coords, "path", antipodal_of_paths[i])
+                if self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].coords != destination_of_paths[i]:
+                    print("info error, entry is", self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].coords, "but expected it to be", destination_of_paths[i])
+
+
+    def choose_path(self, departure_ornt, cell):
+        indices_of_paths = [i for i, x in enumerate(cell.paths) if x == 1]                       # 1, 0, 1, 1
+        orientation_of_paths = [self.possible_orientations[i] for i in indices_of_paths]    # N, S, E, W
+        print(f"in choose_path: indices/orientations {indices_of_paths}/{orientation_of_paths}")
+        print(f"departure orientation/cell.coords {departure_ornt}/{cell.paths}")
+        if departure_ornt is not None:
+            return_path = self.get_antipodal(departure_ornt)
+            orientation_of_paths.remove(return_path)
+            if not orientation_of_paths:
+                return return_path
+        destination_of_paths = [(self.coord_sum[i][0] + cell.coords[0], self.coord_sum[i][1] + cell.coords[1])for i in orientation_of_paths]
+        for i in range(len(destination_of_paths)):
+            if not self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].visited:
+                if -1 not in self.state[5-int(destination_of_paths[i][1]/2)][12+int(destination_of_paths[i][0]/2)].paths:
+                    continue
+                return orientation_of_paths[i]
+        return self.closest_cell(cell)
+
+    
+    def closest_cell(self, curr_cell):
+        visited_cells = set()
+        visited_cells.add(curr_cell)
+        queue = deque([(curr_cell,0,[])])
+
+        while queue:
+            actual, moves, parents = queue.popleft()
+            if not actual.visited:
+                print("return 0", actual.coords)
+                return self.cell_to_orientation(curr_cell,parents[0])
+            
+            neighbours = self.get_neighbours(actual)
+            for neighbour in neighbours:
+                if not neighbour.visited:
+                    print("return 1", neighbour.coords)
+                    return self.cell_to_orientation(curr_cell,parents[0])
+                if neighbour not in visited_cells:
+                    new_parents = []
+                    for p in parents:
+                        new_parents.append(p)
+                    new_parents.append(neighbour)
+                    new_moves = moves
+                    queue.append((neighbour, new_moves+1, new_parents))
+                    visited_cells.add(neighbour)
+        self.create_map()
+        return # no more unvisited nodes
+
+    def get_neighbours(self, cell):
+        neighbors = []
+        
+        indices_of_paths = [i for i, x in enumerate(cell.paths) if x == 1]
+        orientation_of_paths = [self.possible_orientations[i] for i in indices_of_paths]
+        destination_of_paths = [(self.coord_sum[i][0] + cell.coords[0], self.coord_sum[i][1] + cell.coords[1])for i in orientation_of_paths]
+        for new_x, new_y in destination_of_paths:
+            neighbors.append(self.state[5-int(new_y/2)][12+int(new_x/2)])
+
+        return neighbors
+    
+    def cell_to_orientation(self, start, end):
+        indices_of_paths = [i for i, x in enumerate(start.paths) if x == 1]
+        orientation_of_paths = [self.possible_orientations[i] for i in indices_of_paths]
+        destination_of_paths = [(self.coord_sum[i][0] + start.coords[0], self.coord_sum[i][1] + start.coords[1])for i in orientation_of_paths]
+        for i, dest in enumerate(destination_of_paths):
+            if dest==end.coords:
+                return orientation_of_paths[i]
+    
+
     def rotate_to_orientation(self, destination):
         orientation_to_angle = {
             "E": 0,
@@ -532,11 +757,15 @@ class MyRob(CRobLinkAngs):
         diff = destination_angle - self.measures.compass            # TODO tirar daqui a leitura da compass
         if abs(diff) < 2 :
             print(f"done rotating... {self.measures.lineSensor}")
+            ## ALTERADO JOÃOO
+            if self.rotating_centre:
+                self.rotating_centre = False
+            ## FIM ALTERADO JOÃO
             self.rotating_now = False
-            self.objective_orientation = None
             self.follow_line(self.measures.lineSensor)
             return
         else:
+            self.rotating_now = True
             if abs(diff) > 180:
                 if diff >= 0:
                     if diff > 30:
@@ -593,6 +822,57 @@ class MyRob(CRobLinkAngs):
     def reset_history(self):
         self.history = ['']  * 20
         self.m = 0
+    
+    def create_map(self):
+        mapa = ""
+        for line in self.state:
+            for column in line:
+                if column is None:
+                    mapa = mapa + "  "
+                    continue
+                if column.coords == (0,0):
+                    mapa = mapa + "I"
+                else:
+                    mapa = mapa + " "
+                if column.paths[2]==1:
+                    mapa = mapa + "-"
+                else:
+                    mapa = mapa + " "
+            mapa = mapa[:-1]
+            if line is self.state[-1]:
+                break
+            mapa = mapa + "\n"
+            prev_cell_none = False
+            for column in line:
+                if column is not None:
+                    if prev_cell_none and column.paths[5]==1:
+                        mapa = mapa + "/"
+                    if not prev_cell_none and column.paths[5]==1:
+                        mapa = mapa + "/"
+                    if prev_cell_none and column.paths[5]==0:
+                        mapa = mapa + " "
+                    if column.paths[4]==1:
+                        mapa = mapa + "|"
+                    else:
+                        mapa = mapa + " "
+                    if column.paths[3]==1:
+                        mapa = mapa + "\\"
+                    else:
+                        mapa = mapa + " "
+                    
+                    prev_cell_none = False
+                else:
+                    if prev_cell_none:
+                        mapa = mapa + "  "
+                    else:
+                        mapa = mapa + " "
+                    prev_cell_none = True
+
+            mapa = mapa + "\n"
+
+        with open('output.txt', 'w') as file:
+            print(mapa, file=file)
+            #print(mapa)
 
 
     
