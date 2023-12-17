@@ -12,6 +12,7 @@ class Cell():
         self.visited = False
         self.paths = [-1,-1,-1,-1,-1,-1,-1,-1]
         self.coords = None
+        self.beacon_no = None
 
 class MyRob(CRobLinkAngs):
     out_l = 0
@@ -267,11 +268,15 @@ class MyRob(CRobLinkAngs):
             cell.paths = self.paths
             self.state[5-y][12+x] = cell
             self.create_neighbours(cell)
+            if self.measures.ground != -1:
+                cell.beacon_no = self.measures.ground
         else:
             if not self.state[5-y][12+x].visited:
                 self.state[5-y][12+x].visited = True
                 self.state[5-y][12+x].paths = self.paths
                 self.create_neighbours(self.state[5-y][12+x])
+                if self.measures.ground != -1:
+                    cell.beacon_no = self.measures.ground
         self.paths = [0,0,0,0,0,0,0,0]
         if self.objective_orientation is None:
             destination = self.choose_path(self.departure_orientation, self.state[5-y][12+x])
