@@ -17,7 +17,7 @@ class Cell():
 class MyRob(CRobLinkAngs):
     out_l = 0
     out_r = 0
-    rot_predict = 0        # TODO: must be init as None and averager or smth after first readings
+    rot_predict = 0
     x_predict = 0
     y_predict = 0
     intersect_directions = []                #set that will hold for which path there is an intersection
@@ -55,6 +55,7 @@ class MyRob(CRobLinkAngs):
     first_time_move_to_center = False
     inside_intersection = False
     analyzed = False
+    last_pow = 0
 
     def __init__(self, rob_name, rob_id, angles, host):
         CRobLinkAngs.__init__(self, rob_name, rob_id, angles, host)
@@ -151,6 +152,7 @@ class MyRob(CRobLinkAngs):
             if self.prev_distance is None: self.prev_distance = self.distance
             if (not self.inside_intersection) and self.distance<=0.15:
                 self.arrived = True
+                self.need_to_center = False
             else:
                 self.arrived = False
             self.prev_distance = self.distance
@@ -171,7 +173,7 @@ class MyRob(CRobLinkAngs):
                     if self.rotating_now:
                         #TODO unreachable code?
                         #calculate curr direction degree and objective degree difference
-                        print(f"rotating to {self.objective_orientation} 2")
+                        print(f"rotating to 2 {self.objective_orientation} ")
                         self.intersect = False                                          #isto e para no prox ciclo nao entrar no "was in intersect",
                         return self.rotate_to_orientation(self.objective_orientation)   #para evitar detetar intersecao depois de rodar, o rotate_to_orientation, se tiver orientado entao faz follow line
                     if self.need_to_center:
@@ -181,8 +183,10 @@ class MyRob(CRobLinkAngs):
                         if distance <= 0.15:
                             #self.arrived = True
                             self.need_to_center = False
+                            print("No more adjust")
+                        else:
+                            return self.move_to_center(distance)
                         ## FIM ALTERADO JOAO
-                        return self.move_to_center()
                     else:
                         if self.intersect:
                             if self.first_time_intersect:
@@ -214,7 +218,7 @@ class MyRob(CRobLinkAngs):
                                 self.entry_orientation = None
                                 self.first_time_intersect = True
                                 self.intersect_directions.clear()
-                                #self.need_to_center = True
+                                self.need_to_center = True
                                 self.first_time_move_to_center = True
                                 print(f"3->{self.paths}")
                                 return
@@ -255,11 +259,13 @@ class MyRob(CRobLinkAngs):
         x = int(round(self.x_predict)/2)
         y = int(round(self.y_predict)/2)
         if not self.analyzed:
-            print("entered special case")
+            print("entered special case", self.measures.lineSensor, self.get_distance_2_points((self.x_predict,self.y_predict),(self.new_x,self.new_y)))
             self.intersect_directions.append(self.get_antipodal(self.departure_orientation))
             if '1' in self.measures.lineSensor[2:5]:
                 self.intersect_directions.append(self.departure_orientation)
             self.directions_to_bin()
+            self.reset_history()
+            self.intersect_directions.clear()
 
         if self.state[5-y][12+x] is None:
             cell = Cell()
@@ -285,6 +291,7 @@ class MyRob(CRobLinkAngs):
                 return
             self.objective_orientation = destination
             self.rotate_to_orientation(destination)
+            print("destination is", destination)
             return
         
         self.objective_orientation = None
@@ -308,7 +315,7 @@ class MyRob(CRobLinkAngs):
     
 ##ALTERADO JOAO
 
-    def move_to_center(self):
+    def move_to_center(self, distance):
         print("moving to center")
         if self.rotating_centre:
             return self.rotate_to_orientation(self.objective_orientation)
@@ -322,10 +329,12 @@ class MyRob(CRobLinkAngs):
 
         self.objective_orientation=None
         #round x and y to nearest multiple of 2
-        distance = self.get_distance_2_points((self.x_predict,self.y_predict),(self.new_x,self.new_y))
+        # distance = self.get_distance_2_points((self.x_predict,self.y_predict),(self.new_x,self.new_y))
         
         if distance > 0.15:
             self.driveMotorsExt(0.03, 0.03)
+        else:
+            self.move_to_center = False
         return
 
     def get_distance_2_points(self,point1, point2):
@@ -358,10 +367,12 @@ class MyRob(CRobLinkAngs):
         self.out_l = (lpow + self.out_l)/2
         self.out_r = (rpow + self.out_r)/2
 
-        lin = (self.out_l + self.out_r) / 2
+        lin = self.last_pow = (self.out_l + self.out_r) / 2
         self.x_predict = self.x_predict + lin*math.cos(self.rot_predict)
         self.y_predict = self.y_predict + lin*math.sin(self.rot_predict)
         self.rot_predict = self.rot_predict + self.out_r - self.out_l
+        if self.rot_predict < -math.pi:
+            self.rot_predict = self.rot_predict % (2*math.pi)
 
         print("x:",round(self.x_predict,2)," y:", round(self.y_predict,2)," t:", round(math.degrees(self.rot_predict),1), self.measures.compass)
 
@@ -625,7 +636,6 @@ class MyRob(CRobLinkAngs):
         # depending on the type of paths found,
         # aproximates the current X/Y prediction
         curr_orientation = self.get_facing_direction()
-        last_pow=0  #TODO implement saving last drive motors value
         #se for vertical: x=round(x); N: y=round(y)+distancia_ao_centro (para cima), S: y=round(y)-distancia_ao_centro(para baixo)
             #se for horizontal: y=round(y); E: x=round(x)+distancia_ao_centro (para direita), W: x=round(x)-distancia_ao_centro (para esquerda)
             # se for diagonal NE: y=round(y)+distancia_centro/sqrt(2), x=round(x)+distancia_centro/sqrt(2)
@@ -634,38 +644,33 @@ class MyRob(CRobLinkAngs):
             #                 NW: y=round(y)+distancia_centro/sqrt(2), x=round(x)-distancia_centro/sqrt(2) 
         if code ==1:
             #45deg paths, aprox to zero
-            cntr_distance = 0.24 + (math.sqrt(2)*0.1) - 0.438 + last_pow/2
+            cntr_distance = 0.24 + (math.sqrt(2)*0.1) - 0.438 + self.last_pow/2
         elif code==2:
             #90deg paths, aprox to -0.26
-            cntr_distance = 0.1 - 0.438 + last_pow/2
+            cntr_distance = 0.1 - 0.438 + self.last_pow/2
         elif code == 3:
             #135deg paths
             if self.measures.lineSensor[2:5] == ['1','0','1']:
                 cntr_distance = (0.1/(2*math.sqrt(2))) - 0.438
             elif self.measures.lineSensor[2:5] == ['0','0','0']:
-                cntr_distance = 0.1/math.sqrt(2) + last_pow/2 - 0.438 
+                cntr_distance = 0.1/math.sqrt(2) + self.last_pow/2 - 0.438 
             else:
                 if has_north_path:
-                    cntr_distance = 0.1/math.sqrt(2) + last_pow/2 - 0.438 
+                    cntr_distance = 0.1/math.sqrt(2) + self.last_pow/2 - 0.438 
                 else:
                     cntr_distance = (2*(0.1/math.sqrt(2))-0.16)/2 - 0.438 
             
         if len(curr_orientation)==2:
             cntr_distance=cntr_distance/math.sqrt(2)
-        #TODO when vertical or horizontal, dont align one of the coordinates
-        # confirm that the solution to the above is comenting the else
         if 'N' in curr_orientation:
             self.y_predict = round(self.y_predict)+cntr_distance
         elif 'S' in curr_orientation:
             self.y_predict = round(self.y_predict)-cntr_distance
-        # else:
-        #     self.y_predict = round(self.y_predict)
+
         if 'E' in curr_orientation:
             self.x_predict = round(self.x_predict)+cntr_distance
         elif 'W' in curr_orientation:
             self.x_predict = round(self.x_predict)-cntr_distance
-        # else:
-        #     self.x_predict = round(self.x_predict)
         
         print(f"overide x/y: {self.x_predict} {self.y_predict}\n")
 
@@ -773,7 +778,7 @@ class MyRob(CRobLinkAngs):
         }
         #get current orientation
         destination_angle = orientation_to_angle[destination]
-        diff = destination_angle - self.measures.compass            # TODO tirar daqui a leitura da compass
+        diff = destination_angle - math.degrees(self.rot_predict)
         if abs(diff) < 2 :
             print(f"done rotating... {self.measures.lineSensor}")
             ## ALTERADO JOÃOO
@@ -781,7 +786,7 @@ class MyRob(CRobLinkAngs):
                 self.rotating_centre = False
             ## FIM ALTERADO JOÃO
             self.rotating_now = False
-            self.follow_line(self.measures.lineSensor)
+            #«self.follow_line(self.measures.lineSensor)
             return
         else:
             self.rotating_now = True
