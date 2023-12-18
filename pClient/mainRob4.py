@@ -3,6 +3,7 @@ from croblink import *
 import math
 import xml.etree.ElementTree as ET
 from collections import deque
+from itertools import permutations
 
 CELLROWS=7
 CELLCOLS=14
@@ -315,6 +316,99 @@ class MyRob(CRobLinkAngs):
         print(f"paths: {self.paths}")
     
 ##ALTERADO JOAO
+        
+
+    def reconstruct_path(self,start, goal, came_from):
+        current = goal
+        path = []
+
+        while current != start:
+            path.append(current)
+            current = came_from[current]
+
+
+        path.append(start)
+        path.reverse()
+
+        #print("Path:", path)
+
+        return path
+
+    def bfs(self,start, goal):
+        queue = deque([start])
+        visited = set([start])
+        came_from = {start : None}
+
+        while queue:
+            current = queue.popleft()
+
+            if current == goal:
+                break   
+
+             
+            for next_coord in self.get_neighbours(current):
+                if next_coord not in visited:
+                    visited.add(next_coord)
+                    queue.append(next_coord)
+                    came_from[next_coord.coords] = current.coords
+
+        path = self.reconstruct_path(start.coords, goal.coords, came_from)
+        return path
+    
+    def create_final_path(self, start, beacons):
+        final_path = []
+
+        # Path to the first beacon
+        path_to_initial = self.bfs(start, beacons[0])
+        #print(f"Path to {beacons[0].coords}: {path_to_initial}")
+        final_path.extend(path_to_initial)
+
+        # Paths between beacons
+        for i in range(len(beacons) - 1):
+            path = self.bfs(beacons[i], beacons[i + 1])
+            #print(f"Path from {beacons[i].coords} to {beacons[i + 1].coords}: {path}")
+            final_path.extend(path)
+
+        # Path from the last beacon to the start
+        path_to_initial = self.bfs(beacons[-1], start)
+        #print(f"Path from {beacons[-1].coords} to {start.coords}: {path_to_initial}")
+        final_path.extend(path_to_initial)
+
+        return final_path
+
+    def create_path(self):
+        print("\nhere\n")
+
+        beacons = []
+
+        for line in self.state:
+            for column in line:
+                if column.beacon_no is not None:
+                    beacons.append(column)
+        
+
+
+        start = self.state[5][12]
+
+        # Generate all permutations of beacons
+        beacon_permutations = permutations(beacons)
+
+        shortest_path = None
+
+        for permuted_beacons in beacon_permutations:
+            final_path = self.create_final_path(start, permuted_beacons)
+            print(f"Final path: {final_path}")
+
+            # Update the shortest path
+            if shortest_path is None or len(final_path) < len(shortest_path):
+                shortest_path = final_path
+
+        # Write the shortest path to a file
+        with open("output2.txt", "w") as file:
+            for coordinates in shortest_path:
+                file.write(f"{coordinates[0]} {coordinates[1]}\n")
+
+        print("Final Path:", shortest_path)
 
     def move_to_center(self, distance):
         print("moving to center")
