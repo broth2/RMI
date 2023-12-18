@@ -48,5 +48,13 @@ case $challenge in
         python3 mainC3.py -h "$host" -p "$pos" -r "$robname" -f "$outfile"
         mv output2.txt $outfile.path           # if needed
         ;;
+    4)
+        rm -f *.path *.map  # do not remove this line
+
+        # how to call agent for challenge 4
+        python3 mainC4.py -h "$host" -p "$pos" -r "$robname" -f "$outfile"
+        mv output.txt $outfile.map
+        mv output2.txt $outfile.path
+        ;;
 esac
 
