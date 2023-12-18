@@ -927,6 +927,9 @@ class MyRob(CRobLinkAngs):
         with open('output.txt', 'w') as file:
             print(mapa, file=file)
             #print(mapa)
+        
+        with open('output2.txt', 'w') as file:
+            print("0 0\n", file=file)
 
 
     
