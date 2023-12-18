@@ -273,10 +273,10 @@ class MyRob(CRobLinkAngs):
             cell.visited = True
             cell.coords = (round(self.x_predict), round(self.y_predict))
             cell.paths = self.paths
-            self.state[5-y][12+x] = cell
-            self.create_neighbours(cell)
             if self.measures.ground != -1:
                 cell.beacon_no = self.measures.ground
+            self.state[5-y][12+x] = cell
+            self.create_neighbours(cell)
         else:
             if not self.state[5-y][12+x].visited:
                 self.state[5-y][12+x].visited = True
