@@ -149,9 +149,9 @@ class MyRob(CRobLinkAngs):
         if self.has_new_coords:
             # ve se ja chegou e mexe-se
             self.distance = ((self.x_predict-self.new_x)**2 + (self.y_predict-self.new_y)**2)**0.5
-            if self.distance<0.8: print("distance", round(self.distance, 3))
+            if self.distance<0.5: print("distance", round(self.distance, 3))
             if self.prev_distance is None: self.prev_distance = self.distance
-            if (not self.inside_intersection) and self.distance<=0.2:
+            if (not self.inside_intersection) and self.distance<=0.15:
                 self.arrived = True
                 self.need_to_center = False
             else:
@@ -191,11 +191,12 @@ class MyRob(CRobLinkAngs):
                     else:
                         if self.intersect:
                             if self.first_time_intersect:
-                                print("inside intersection")
+                                print("inside intersection", self.measures.lineSensor, "angle:", math.degrees(self.rot_predict))
                                 self.inside_intersection = True
                                 self.first_time_intersect = False
                                 self.entry_orientation = self.get_facing_direction()
                                 self.intersect_directions.append(self.get_antipodal(self.get_facing_direction()))
+                            print("DM: ", end="")
                             self.driveMotorsExt(0.04,0.04)
                             self.append_history(self.measures.lineSensor)
                             return
@@ -225,7 +226,7 @@ class MyRob(CRobLinkAngs):
                                 return
                             
                             
-                            self.follow_line(self.measures.lineSensor)
+                            self.follow_line2(self.measures.lineSensor)
                             #self.driveMotorsExt(0.07,0.07)
                             return
                         
@@ -273,17 +274,17 @@ class MyRob(CRobLinkAngs):
             cell.visited = True
             cell.coords = (round(self.x_predict), round(self.y_predict))
             cell.paths = self.paths
-            self.state[5-y][12+x] = cell
-            self.create_neighbours(cell)
             if self.measures.ground != -1:
                 cell.beacon_no = self.measures.ground
+            self.state[5-y][12+x] = cell
+            self.create_neighbours(cell)
         else:
             if not self.state[5-y][12+x].visited:
                 self.state[5-y][12+x].visited = True
                 self.state[5-y][12+x].paths = self.paths
                 self.create_neighbours(self.state[5-y][12+x])
                 if self.measures.ground != -1:
-                    cell.beacon_no = self.measures.ground
+                    self.state[5-y][12+x].beacon_no = self.measures.ground
         self.paths = [0,0,0,0,0,0,0,0]
         if self.objective_orientation is None:
             destination = self.choose_path(self.departure_orientation, self.state[5-y][12+x])
@@ -426,6 +427,7 @@ class MyRob(CRobLinkAngs):
         # distance = self.get_distance_2_points((self.x_predict,self.y_predict),(self.new_x,self.new_y))
         
         if distance > 0.15:
+            print("MV: ", end="")
             self.driveMotorsExt(0.03, 0.03)
         else:
             self.move_to_center = False
@@ -468,7 +470,7 @@ class MyRob(CRobLinkAngs):
         if self.rot_predict < -math.pi:
             self.rot_predict = self.rot_predict % (2*math.pi)
 
-        print("x:",round(self.x_predict,2)," y:", round(self.y_predict,2)," t:", round(math.degrees(self.rot_predict),1), self.measures.compass)
+        print("x:",round(self.x_predict,2)," y:", round(self.y_predict,2)," t:", round(math.degrees(self.rot_predict),1), self.measures.compass, self.measures.lineSensor)
 
     def follow_line(self, arr):
         first_index = -1
@@ -498,6 +500,34 @@ class MyRob(CRobLinkAngs):
             right_motor_speed = 0.02 - correction
             self.driveMotorsExt(left_motor_speed, right_motor_speed)
 
+    def follow_line2(self, arr):
+        arr = list(arr[2:5])
+        first_index = -1
+        last_index = -1
+        for i in range(len(arr)):
+            if arr[i] == '1':
+                first_index = i
+                break
+        for i in range(len(arr)-1, -1, -1):
+            if arr[i] == '1':
+                last_index = i
+                break
+
+        center = (first_index + last_index) / 2
+
+        if first_index==-1 and last_index==-1:
+            center = 2
+            print("oh nao oh deus")
+
+        error = center - 1
+        print("FL2: ", end="")
+        if error == 0:
+            self.driveMotorsExt(0.07, 0.07)
+        else:
+            correction = (0.03 * error)
+            left_motor_speed = 0.02 + correction
+            right_motor_speed = 0.02 - correction
+            self.driveMotorsExt(left_motor_speed, right_motor_speed)
 
     def detect_intersection(self, lineSensor):
         if '1' in lineSensor[0] or '1' in lineSensor[1] or '1' in lineSensor[5] or '1' in lineSensor[6]:
@@ -948,8 +978,8 @@ class MyRob(CRobLinkAngs):
                 if column is None:
                     mapa = mapa + "  "
                     continue
-                if column.coords == (0,0):
-                    mapa = mapa + "I"
+                if column.beacon_no is not None:
+                    mapa = mapa + f"{column.beacon_no}"
                 else:
                     mapa = mapa + " "
                 if column.paths[2]==1:
